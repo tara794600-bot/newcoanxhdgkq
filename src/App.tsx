@@ -524,6 +524,7 @@ function App() {
     const matchedLink = powerlinkLinks.find((item) => item.token === landingToken)
     return matchedLink?.keyword ?? ''
   }, [landingToken, powerlinkLinks])
+  const showHeroTypingCursor = route === 'home' && heroTypedText.length < HERO_TYPING_TEXT.length
 
   const displayRollingCases = rollingCases.length > 0 ? rollingCases : defaultRollingCases
   const rollingLoopCases = useMemo(
@@ -1881,9 +1882,11 @@ function App() {
                     className={landingPowerlinkKeyword ? 'hero-title-with-keyword' : undefined}
                   >
                     <span className="hero-typing-text">{heroTypedText || '\u00A0'}</span>
-                    <span className="hero-typing-cursor" aria-hidden="true">
-                      |
-                    </span>
+                    {showHeroTypingCursor ? (
+                      <span className="hero-typing-cursor" aria-hidden="true">
+                        |
+                      </span>
+                    ) : null}
                   </h1>
                 </div>
 
