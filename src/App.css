@@ -10,7 +10,7 @@
   --card-bg: rgba(255, 252, 245, 0.95);
   --shadow: 0 14px 30px rgba(16, 23, 33, 0.12);
   --max-width: 1120px;
-  --quick-apply-reserve: 196px;
+  --quick-apply-reserve: calc(76px + var(--safe-area-bottom));
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -689,7 +689,7 @@ main {
 }
 
 .hero-stats-bar + .hero-cta {
-  margin-top: clamp(14px, 2vh, 24px);
+  margin-top: clamp(28px, 3.2vh, 44px);
   margin-bottom: clamp(14px, 2.2vh, 28px);
 }
 
@@ -1818,7 +1818,7 @@ main {
 
 @media (max-width: 900px) {
   :root {
-    --quick-apply-reserve: 184px;
+    --quick-apply-reserve: calc(62px + var(--safe-area-bottom));
   }
 
   .app-shell::before {
@@ -2419,7 +2419,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --quick-apply-reserve: 170px;
+    --quick-apply-reserve: calc(62px + var(--safe-area-bottom));
   }
 
   .app-shell::before {
