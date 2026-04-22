@@ -7,6 +7,7 @@ const LIMITS = {
   name: 60,
   phone: 40,
   details: 4000,
+  clientIp: 120,
   source: 80,
   pagePath: 300,
   landingPath: 300,
@@ -24,6 +25,71 @@ class HttpError extends Error {
 }
 
 const toTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '')
+
+const toHeaderCandidates = (value) => {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) =>
+      typeof item === 'string'
+        ? item.split(',').map((part) => part.trim())
+        : [],
+    )
+  }
+
+  if (typeof value === 'string') {
+    return value.split(',').map((part) => part.trim())
+  }
+
+  return []
+}
+
+const normalizeClientIp = (value) => {
+  const trimmed = toTrimmedString(value)
+
+  if (!trimmed) {
+    return ''
+  }
+
+  const bracketMatch = trimmed.match(/^\[([^\]]+)\](?::\d+)?$/)
+  const candidate = bracketMatch ? bracketMatch[1] : trimmed
+  const withoutIpv4Port = candidate.replace(
+    /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/,
+    '$1',
+  )
+
+  if (withoutIpv4Port.startsWith('::ffff:')) {
+    return withoutIpv4Port.slice(7)
+  }
+
+  return withoutIpv4Port
+}
+
+const getClientIp = (req) => {
+  const headerOrder = [
+    req.headers['x-forwarded-for'],
+    req.headers['x-real-ip'],
+    req.headers['x-vercel-forwarded-for'],
+    req.headers['cf-connecting-ip'],
+    req.headers['x-client-ip'],
+  ]
+
+  for (const rawHeader of headerOrder) {
+    const candidates = toHeaderCandidates(rawHeader)
+
+    for (const candidate of candidates) {
+      const normalizedIp = normalizeClientIp(candidate)
+
+      if (normalizedIp) {
+        return normalizedIp.slice(0, LIMITS.clientIp)
+      }
+    }
+  }
+
+  const remoteAddress =
+    normalizeClientIp(req.socket?.remoteAddress) ||
+    normalizeClientIp(req.connection?.remoteAddress)
+
+  return remoteAddress ? remoteAddress.slice(0, LIMITS.clientIp) : ''
+}
 
 const parseJsonEnv = (key) => {
   const rawValue = process.env[key]
@@ -326,26 +392,53 @@ export default async function handler(req, res) {
     const db = getFirestore(app)
     const body = toRequestBody(req.body)
     const payload = validateConsultationPayload(body)
+    const clientIp = getClientIp(req)
     const createdAt = new Date()
     const createdAtKst = createdAt.toLocaleString('ko-KR', {
       timeZone: 'Asia/Seoul',
       hour12: false,
     })
+    const requestCollection = db.collection('consultationRequests')
 
-    const docRef = await db.collection('consultationRequests').add({
-      name: payload.name,
-      phone: payload.phone,
-      details: payload.details,
-      source: payload.source,
-      pagePath: payload.pagePath,
-      landingPath: payload.landingPath,
-      landingToken: payload.landingToken,
-      landingKeyword: payload.landingKeyword,
-      queryString: payload.queryString,
-      userAgent: payload.userAgent,
-      createdAt: FieldValue.serverTimestamp(),
-      createdAtClient: createdAt.toISOString(),
-      status: 'received',
+    if (!clientIp) {
+      throw new HttpError(400, '클라이언트 IP를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    }
+
+    const clientIpHash = createHash('sha256').update(clientIp).digest('hex')
+    const blockRef = db.collection('consultationIpBlocks').doc(clientIpHash)
+    const docRef = requestCollection.doc()
+
+    await db.runTransaction(async (transaction) => {
+      const blockSnapshot = await transaction.get(blockRef)
+
+      if (blockSnapshot.exists) {
+        throw new HttpError(429, '이미 접수된 IP입니다. 다른 네트워크에서 다시 시도해주세요.')
+      }
+
+      transaction.set(docRef, {
+        name: payload.name,
+        phone: payload.phone,
+        details: payload.details,
+        source: payload.source,
+        pagePath: payload.pagePath,
+        landingPath: payload.landingPath,
+        landingToken: payload.landingToken,
+        landingKeyword: payload.landingKeyword,
+        queryString: payload.queryString,
+        userAgent: payload.userAgent,
+        clientIpHash,
+        createdAt: FieldValue.serverTimestamp(),
+        createdAtClient: createdAt.toISOString(),
+        status: 'received',
+      })
+
+      transaction.set(blockRef, {
+        blocked: true,
+        blockedAt: FieldValue.serverTimestamp(),
+        firstRequestId: docRef.id,
+        firstCreatedAtClient: createdAt.toISOString(),
+        source: payload.source,
+      })
     })
 
     const request = {
