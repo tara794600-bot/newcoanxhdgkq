@@ -241,14 +241,14 @@ const activeScamCases = [
   },
   {
     tag: '나란에서 진행중인 사건 3',
-    title: '로또 환불 사기',
-    description: '로또회사 개인정보 유출된 건을 코인으로 환급해준대며 접근',
+    title: '로맨스스캠 사기',
+    description: '낯선이성으로 부터 온 연락으로 신뢰를 쌓고 투자를 권유',
     icon: icon3Img,
   },
   {
     tag: '나란에서 진행중인 사건 4',
     title: '각종 투자사기',
-    description: '쇼핑몰 구매대행, 로맨스스캠, 미술품 투자 금 투자 등 각종 투자사기',
+    description: '쇼핑몰 구매대행, 로또 환불, 미술품 투자 금 투자 등 각종 투자사기',
     icon: icon4Img,
   },
 ]
@@ -453,9 +453,55 @@ const toAuthErrorMessage = (error: unknown): string => {
       return '비밀번호는 6자 이상으로 입력해주세요.'
     case 'auth/too-many-requests':
       return '요청이 많아 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.'
+    case 'permission-denied':
+    case 'firestore/permission-denied':
+      return 'Firestore 권한이 없습니다. Firestore Rules 배포 상태를 확인해주세요.'
     default:
       return '인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
   }
+}
+
+const isPermissionDeniedError = (error: unknown): boolean =>
+  error instanceof FirebaseError &&
+  (error.code === 'permission-denied' || error.code === 'firestore/permission-denied')
+
+const waitFor = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+
+const runWithPermissionRetry = async <T,>(params: {
+  run: () => Promise<T>
+  refreshAuth?: () => Promise<void>
+}): Promise<T> => {
+  const { run, refreshAuth } = params
+  let lastError: unknown = null
+
+  for (const delayMs of [0, 250, 700]) {
+    if (delayMs > 0) {
+      await waitFor(delayMs)
+    }
+
+    if (refreshAuth) {
+      try {
+        await refreshAuth()
+      } catch (refreshError) {
+        console.warn('인증 토큰 갱신 실패', refreshError)
+      }
+    }
+
+    try {
+      return await run()
+    } catch (error) {
+      lastError = error
+
+      if (!isPermissionDeniedError(error)) {
+        throw error
+      }
+    }
+  }
+
+  throw lastError ?? new Error('권한 오류로 처리에 실패했습니다.')
 }
 
 function App() {
@@ -1088,18 +1134,24 @@ function App() {
 
       if (shouldEnrollWithInvite) {
         try {
-          await setDoc(
-            doc(db, 'adminUsers', credential.user.uid),
-            {
-              email: credential.user.email ?? email,
-              isAdmin: true,
-              isStaff: true,
-              approvedByInviteCode: true,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
+          await runWithPermissionRetry({
+            run: () =>
+              setDoc(
+                doc(db, 'adminUsers', credential.user.uid),
+                {
+                  email: credential.user.email ?? email,
+                  isAdmin: true,
+                  isStaff: true,
+                  approvedByInviteCode: true,
+                  createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true },
+              ),
+            refreshAuth: async () => {
+              await credential.user.getIdToken(true)
             },
-            { merge: true },
-          )
+          })
         } catch (error) {
           console.error(error)
           adminEnrollmentWriteFailed = true
@@ -1127,7 +1179,13 @@ function App() {
       }
 
       if (adminEnrollmentWriteFailed) {
-        setAuthError('초대코드는 확인되었지만 관리자 승인 저장에 실패했습니다. Firestore 규칙을 확인해주세요.')
+        if (error instanceof FirebaseError) {
+          setAuthError(
+            `초대코드는 확인되었지만 관리자 승인 저장에 실패했습니다. (${error.code}) Firestore 규칙 배포/권한을 확인해주세요.`,
+          )
+        } else {
+          setAuthError('초대코드는 확인되었지만 관리자 승인 저장에 실패했습니다. Firestore 규칙을 확인해주세요.')
+        }
       } else {
         setAuthError(toAuthErrorMessage(error))
       }
