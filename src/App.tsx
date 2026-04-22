@@ -2050,7 +2050,15 @@ function App() {
                       <div className="scam-card-copy">
                         <p className="scam-card-tag">{item.tag}</p>
                         <h3>{item.title}</h3>
-                        <p>{item.description}</p>
+                        <p className="scam-card-description">
+                          {item.description.split(', ').map((chunk, chunkIndex, chunks) => (
+                            <span key={`${item.title}-description-${chunkIndex}`}>
+                              {chunk}
+                              {chunkIndex < chunks.length - 1 ? ', ' : ''}
+                              {chunkIndex < chunks.length - 1 ? <wbr /> : null}
+                            </span>
+                          ))}
+                        </p>
                       </div>
                       <img src={item.icon} alt={`${item.title} 아이콘`} className="scam-card-icon" />
                     </article>

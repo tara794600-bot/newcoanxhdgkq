@@ -1032,11 +1032,13 @@ main {
   letter-spacing: -0.02em;
 }
 
-.scam-card-copy p:last-child {
+.scam-card-description {
   margin: 14px 0 0;
   color: #768192;
   font-size: clamp(14px, 1vw, 20px);
   line-height: 1.5;
+  word-break: keep-all;
+  line-break: strict;
 }
 
 .scam-card-icon {
@@ -2124,7 +2126,7 @@ main {
     font-size: clamp(24px, 6.2vw, 30px);
   }
 
-  .scam-card-copy p:last-child {
+  .scam-card-description {
     margin-top: 8px;
     font-size: 13px;
   }
