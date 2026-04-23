@@ -1316,22 +1316,22 @@ function App() {
     const details = consultationDetailsInput.trim()
 
     if (!name || !phone || !details) {
-      setConsultationError('이름, 연락처, 피해 내용을 모두 입력해주세요.')
+      window.alert('이름, 연락처, 피해 내용을 모두 입력해주세요.')
       return
     }
 
     if (!CONSULTATION_NAME_REGEX.test(name)) {
-      setConsultationError('이름은 한글 2자부터 6자까지 입력해주세요.')
+      window.alert('이름은 한글 2자부터 6자까지 입력해주세요.')
       return
     }
 
     if (!CONSULTATION_PHONE_REGEX.test(phone)) {
-      setConsultationError('연락처는 숫자 11자리로 입력해주세요.')
+      window.alert('연락처는 숫자 11자리로 입력해주세요.')
       return
     }
 
     if (details.length > CONSULTATION_LIMITS.details) {
-      setConsultationError(`피해 내용은 ${CONSULTATION_LIMITS.details}자 이하로 입력해주세요.`)
+      window.alert(`피해 내용은 ${CONSULTATION_LIMITS.details}자 이하로 입력해주세요.`)
       return
     }
 
@@ -1372,7 +1372,7 @@ function App() {
       window.alert('신청이 완료되었습니다.')
     } catch (error) {
       console.error(error)
-      setConsultationError(error instanceof Error ? error.message : '접수 처리 중 오류가 발생했습니다.')
+      window.alert(error instanceof Error ? error.message : '접수 처리 중 오류가 발생했습니다.')
     } finally {
       setConsultationBusy(false)
     }
