@@ -346,10 +346,12 @@ const COMPANY_CASE_LIMITS = {
 }
 
 const CONSULTATION_LIMITS = {
-  name: 60,
-  phone: 40,
+  name: 6,
+  phone: 11,
   details: 4000,
 }
+const CONSULTATION_NAME_REGEX = /^[가-힣]{2,6}$/
+const CONSULTATION_PHONE_REGEX = /^\d{11}$/
 
 const POWERLINK_KEYWORD_LIMIT = 120
 
@@ -1299,13 +1301,18 @@ function App() {
     moveToQuickFormSection()
   }
 
+  const handleConsultationPhoneChange = (value: string) => {
+    const onlyDigits = value.replace(/[^0-9]/g, '').slice(0, CONSULTATION_LIMITS.phone)
+    setConsultationPhoneInput(onlyDigits)
+  }
+
   const handleConsultationSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setConsultationError('')
     setConsultationNotice('')
 
-    const name = consultationNameInput.trim()
-    const phone = consultationPhoneInput.trim()
+    const name = consultationNameInput.trim().replace(/\s+/g, '')
+    const phone = consultationPhoneInput.trim().replace(/[^0-9]/g, '')
     const details = consultationDetailsInput.trim()
 
     if (!name || !phone || !details) {
@@ -1313,13 +1320,13 @@ function App() {
       return
     }
 
-    if (name.length > CONSULTATION_LIMITS.name) {
-      setConsultationError(`이름은 ${CONSULTATION_LIMITS.name}자 이하로 입력해주세요.`)
+    if (!CONSULTATION_NAME_REGEX.test(name)) {
+      setConsultationError('이름은 한글 2자부터 6자까지 입력해주세요.')
       return
     }
 
-    if (phone.length > CONSULTATION_LIMITS.phone) {
-      setConsultationError(`연락처는 ${CONSULTATION_LIMITS.phone}자 이하로 입력해주세요.`)
+    if (!CONSULTATION_PHONE_REGEX.test(phone)) {
+      setConsultationError('연락처는 숫자 11자리로 입력해주세요.')
       return
     }
 
@@ -1362,7 +1369,7 @@ function App() {
       setConsultationNameInput('')
       setConsultationPhoneInput('')
       setConsultationDetailsInput('')
-      setConsultationNotice('신청이 정상 접수되었습니다. 전담 변호사가 확인 후 빠르게 연락드리겠습니다.')
+      window.alert('신청이 완료되었습니다.')
     } catch (error) {
       console.error(error)
       setConsultationError(error instanceof Error ? error.message : '접수 처리 중 오류가 발생했습니다.')
@@ -2125,9 +2132,10 @@ function App() {
                   <input
                     type="tel"
                     value={consultationPhoneInput}
-                    onChange={(event) => setConsultationPhoneInput(event.target.value)}
+                    onChange={(event) => handleConsultationPhoneChange(event.target.value)}
                     placeholder="연락처"
                     maxLength={CONSULTATION_LIMITS.phone}
+                    inputMode="numeric"
                     autoComplete="tel"
                     required
                     disabled={consultationBusy}
@@ -2255,9 +2263,10 @@ function App() {
               <input
                 type="tel"
                 value={consultationPhoneInput}
-                onChange={(event) => setConsultationPhoneInput(event.target.value)}
+                onChange={(event) => handleConsultationPhoneChange(event.target.value)}
                 placeholder="연락처"
                 maxLength={CONSULTATION_LIMITS.phone}
+                inputMode="numeric"
                 autoComplete="tel"
                 required
                 disabled={consultationBusy}
