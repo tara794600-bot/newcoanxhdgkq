@@ -226,28 +226,7 @@ const validateConsultationPayload = (payload) => {
 }
 
 const buildTelegramMessage = (request) => {
-  const details = request.details.length > 1500 ? `${request.details.slice(0, 1500)}...` : request.details
-  const landingToken =
-    request.landingToken.length > 160
-      ? `${request.landingToken.slice(0, 160)}...`
-      : request.landingToken
-
-  return [
-    '[빠른상담 신규 접수]',
-    `ID: ${request.requestId}`,
-    `접수시각(KST): ${request.createdAtKst}`,
-    `이름: ${request.name}`,
-    `연락처: ${request.phone}`,
-    `출처: ${request.source}`,
-    `랜딩경로: ${request.landingPath}`,
-    `토큰: ${landingToken || '-'}`,
-    `키워드(복호화): ${request.landingKeyword || '-'}`,
-    `해시경로: ${request.pagePath}`,
-    `쿼리: ${request.queryString || '-'}`,
-    '',
-    '피해 내용',
-    details,
-  ].join('\n')
+  return [`이름: ${request.name}`, `연락처: ${request.phone}`].join('\n')
 }
 
 const toErrorMessage = (error) => {
