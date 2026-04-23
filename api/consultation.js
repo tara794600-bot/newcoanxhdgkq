@@ -225,8 +225,35 @@ const validateConsultationPayload = (payload) => {
   }
 }
 
+const formatPhoneForDisplay = (phone) => {
+  const digits = toTrimmedString(phone).replace(/[^0-9]/g, '')
+
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+  }
+
+  if (digits.length === 10 && digits.startsWith('02')) {
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`
+  }
+
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+
+  return toTrimmedString(phone)
+}
+
 const buildTelegramMessage = (request) => {
-  return [`이름: ${request.name}`, `연락처: ${request.phone}`].join('\n')
+  const formattedPhone = formatPhoneForDisplay(request.phone)
+  const details = toTrimmedString(request.details)
+
+  return [
+    '📩 새로운 신청',
+    '',
+    `👤 이름: ${request.name}`,
+    `📞 연락처: ${formattedPhone}`,
+    `✅ 피해내용: ${details}`,
+  ].join('\n')
 }
 
 const toErrorMessage = (error) => {
@@ -298,25 +325,15 @@ const appendGoogleSheet = async (request) => {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${sheetName}!A:L`,
+    range: `${sheetName}!A:C`,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: {
       values: [
         [
-          request.createdAtKst,
-          request.requestId,
           request.name,
-          request.phone,
+          formatPhoneForDisplay(request.phone),
           request.details,
-          request.source,
-          request.landingPath,
-          request.landingToken,
-          request.landingKeyword,
-          request.pagePath,
-          request.queryString,
-          request.userAgent,
-          'stored-via-vercel-api',
         ],
       ],
     },
