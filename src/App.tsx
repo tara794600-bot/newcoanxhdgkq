@@ -45,6 +45,7 @@ import './App.css'
 
 type PageRoute = 'home' | 'lawyers' | 'companies'
 type AuthViewMode = 'login' | 'signup'
+type ConsultationYesNo = '' | 'yes' | 'no'
 
 type RollingCase = {
   id: string
@@ -552,6 +553,10 @@ function App() {
   const [consultationNameInput, setConsultationNameInput] = useState('')
   const [consultationPhoneInput, setConsultationPhoneInput] = useState('')
   const [consultationDetailsInput, setConsultationDetailsInput] = useState('')
+  const [consultationAfter2025Input, setConsultationAfter2025Input] = useState<ConsultationYesNo>('')
+  const [consultationAfter2025Locked, setConsultationAfter2025Locked] = useState(false)
+  const [consultationDamageOverFiveMillionInput, setConsultationDamageOverFiveMillionInput] =
+    useState<ConsultationYesNo>('')
   const [consultationBusy, setConsultationBusy] = useState(false)
   const [consultationNotice, setConsultationNotice] = useState('')
   const [consultationError, setConsultationError] = useState('')
@@ -579,6 +584,7 @@ function App() {
     () => [...displayRollingCases, ...displayRollingCases, ...displayRollingCases],
     [displayRollingCases],
   )
+  const consultationSubmitDisabled = consultationBusy || consultationAfter2025Input === 'no'
 
   useEffect(() => {
     const legacyRoute = resolveLegacyHashRoute(window.location.hash)
@@ -1306,6 +1312,27 @@ function App() {
     setConsultationPhoneInput(onlyDigits)
   }
 
+  const handleConsultationAfter2025Change = (value: Exclude<ConsultationYesNo, ''>) => {
+    if (consultationAfter2025Locked) {
+      return
+    }
+
+    setConsultationAfter2025Input(value)
+    setConsultationNotice('')
+
+    if (value === 'no') {
+      setConsultationAfter2025Locked(true)
+      setConsultationError('2025년 이후 사건만 신청할 수 있습니다.')
+      return
+    }
+
+    setConsultationError('')
+  }
+
+  const handleConsultationDamageOverFiveMillionChange = (value: Exclude<ConsultationYesNo, ''>) => {
+    setConsultationDamageOverFiveMillionInput(value)
+  }
+
   const handleConsultationSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setConsultationError('')
@@ -1314,6 +1341,20 @@ function App() {
     const name = consultationNameInput.trim().replace(/\s+/g, '')
     const phone = consultationPhoneInput.trim().replace(/[^0-9]/g, '')
     const details = consultationDetailsInput.trim()
+
+    if (consultationAfter2025Input !== 'yes') {
+      const message = '2025년 이후 사건만 신청할 수 있습니다.'
+      setConsultationError(message)
+      window.alert(message)
+      return
+    }
+
+    if (!consultationDamageOverFiveMillionInput) {
+      const message = '500만원 이상 피해 여부를 선택해주세요.'
+      setConsultationError(message)
+      window.alert(message)
+      return
+    }
 
     if (!name || !phone || !details) {
       window.alert('이름, 연락처, 피해 내용을 모두 입력해주세요.')
@@ -1348,6 +1389,8 @@ function App() {
           name,
           phone,
           details,
+          incidentAfter2025: consultationAfter2025Input,
+          damageOverFiveMillion: consultationDamageOverFiveMillionInput,
           source: landingToken ? 'naver-powerlink' : 'website-quick-form',
           pagePath: getRoutePath(route),
           landingPath,
@@ -1369,6 +1412,9 @@ function App() {
       setConsultationNameInput('')
       setConsultationPhoneInput('')
       setConsultationDetailsInput('')
+      setConsultationAfter2025Input('')
+      setConsultationAfter2025Locked(false)
+      setConsultationDamageOverFiveMillionInput('')
       window.alert('신청이 완료되었습니다.')
     } catch (error) {
       console.error(error)
@@ -1377,6 +1423,62 @@ function App() {
       setConsultationBusy(false)
     }
   }
+
+  const renderConsultationChoiceFields = (namePrefix: string) => (
+    <>
+      <fieldset
+        className={`consultation-choice-field ${
+          consultationAfter2025Locked ? 'consultation-choice-field-disabled' : ''
+        }`}
+      >
+        <legend className="consultation-choice-title">25년 이후 사건입니까</legend>
+        <div className="consultation-choice-options">
+          {(['yes', 'no'] as const).map((value) => (
+            <label
+              className={`consultation-choice-option ${
+                consultationBusy || consultationAfter2025Locked ? 'consultation-choice-option-disabled' : ''
+              }`}
+              key={`${namePrefix}-incident-after-2025-${value}`}
+            >
+              <input
+                type="radio"
+                name={`${namePrefix}-incident-after-2025`}
+                value={value}
+                checked={consultationAfter2025Input === value}
+                onChange={() => handleConsultationAfter2025Change(value)}
+                required
+                disabled={consultationBusy || consultationAfter2025Locked}
+              />
+              <span>{value === 'yes' ? '예' : '아니요'}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="consultation-choice-field">
+        <legend className="consultation-choice-title">500만원 이상 피해입니까</legend>
+        <div className="consultation-choice-options">
+          {(['yes', 'no'] as const).map((value) => (
+            <label
+              className={`consultation-choice-option ${consultationBusy ? 'consultation-choice-option-disabled' : ''}`}
+              key={`${namePrefix}-damage-over-five-million-${value}`}
+            >
+              <input
+                type="radio"
+                name={`${namePrefix}-damage-over-five-million`}
+                value={value}
+                checked={consultationDamageOverFiveMillionInput === value}
+                onChange={() => handleConsultationDamageOverFiveMillionChange(value)}
+                required
+                disabled={consultationBusy}
+              />
+              <span>{value === 'yes' ? '예' : '아니요'}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    </>
+  )
 
   const handleCreatePowerlinkLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -2140,6 +2242,7 @@ function App() {
                     required
                     disabled={consultationBusy}
                   />
+                  {renderConsultationChoiceFields('main-consultation')}
                   <textarea
                     rows={4}
                     value={consultationDetailsInput}
@@ -2149,7 +2252,7 @@ function App() {
                     required
                     disabled={consultationBusy}
                   />
-                  <button type="submit" disabled={consultationBusy}>
+                  <button type="submit" disabled={consultationSubmitDisabled}>
                     {consultationBusy ? '전송중...' : '바로상담하기'}
                   </button>
                 </form>
@@ -2271,6 +2374,7 @@ function App() {
                 required
                 disabled={consultationBusy}
               />
+              {renderConsultationChoiceFields('bottom-consultation')}
               <textarea
                 rows={1}
                 value={consultationDetailsInput}
@@ -2280,7 +2384,7 @@ function App() {
                 required
                 disabled={consultationBusy}
               />
-              <button type="submit" disabled={consultationBusy}>
+              <button type="submit" disabled={consultationSubmitDisabled}>
                 {consultationBusy ? '전송중...' : '바로상담'}
               </button>
             </form>
