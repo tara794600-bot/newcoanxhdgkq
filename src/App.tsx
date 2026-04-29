@@ -516,6 +516,7 @@ function App() {
   const heroStatsBarRef = useRef<HTMLDivElement | null>(null)
   const shouldScrollToQuickFormRef = useRef(false)
   const adminEnrollmentInProgressRef = useRef(false)
+  const ineligibleIncidentBlockInProgressRef = useRef(false)
 
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<AuthViewMode>('login')
@@ -1312,6 +1313,46 @@ function App() {
     setConsultationPhoneInput(onlyDigits)
   }
 
+  const blockConsultationIpForIneligibleIncident = async () => {
+    if (ineligibleIncidentBlockInProgressRef.current) {
+      return
+    }
+
+    ineligibleIncidentBlockInProgressRef.current = true
+    const endpoint = CONSULTATION_API_URL || '/api/consultation'
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'block-ineligible-incident',
+          incidentAfter2025: 'no',
+          source: landingToken ? 'naver-powerlink' : 'website-quick-form',
+          pagePath: getRoutePath(route),
+          landingPath,
+          landingToken,
+          queryString: window.location.search || '',
+          userAgent: navigator.userAgent,
+        }),
+      })
+
+      const responseBody = (await response.json().catch(() => null)) as
+        | { ok?: boolean; message?: string }
+        | null
+
+      if (!response.ok || !responseBody?.ok) {
+        throw new Error(responseBody?.message ?? 'IP 차단 처리에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      ineligibleIncidentBlockInProgressRef.current = false
+    }
+  }
+
   const handleConsultationAfter2025Change = (value: Exclude<ConsultationYesNo, ''>) => {
     if (consultationAfter2025Locked) {
       return
@@ -1323,6 +1364,7 @@ function App() {
     if (value === 'no') {
       setConsultationAfter2025Locked(true)
       setConsultationError('2025년 이후 사건만 신청할 수 있습니다.')
+      void blockConsultationIpForIneligibleIncident()
       return
     }
 
