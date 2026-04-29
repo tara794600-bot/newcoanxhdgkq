@@ -250,6 +250,56 @@ const validateConsultationPayload = (payload) => {
   }
 }
 
+const validateIneligibleIncidentBlockPayload = (payload) => {
+  const incidentAfter2025 = toTrimmedString(payload.incidentAfter2025).slice(0, LIMITS.yesNo)
+  const source = toTrimmedString(payload.source) || 'website-quick-form'
+  const pagePath = toTrimmedString(payload.pagePath) || '#/'
+  const landingPath = toTrimmedString(payload.landingPath) || '/'
+  const landingToken = toTrimmedString(payload.landingToken)
+  const queryString = toTrimmedString(payload.queryString)
+  const userAgent = toTrimmedString(payload.userAgent)
+  const landingKeyword = decodePowerlinkKeyword(landingToken)
+
+  if (incidentAfter2025 !== 'no') {
+    throw new HttpError(400, '차단 대상이 아닙니다.')
+  }
+
+  if (source.length > LIMITS.source) {
+    throw new HttpError(400, '접수 출처(source) 길이가 너무 깁니다.')
+  }
+
+  if (pagePath.length > LIMITS.pagePath) {
+    throw new HttpError(400, '경로(pagePath) 길이가 너무 깁니다.')
+  }
+
+  if (landingPath.length > LIMITS.landingPath) {
+    throw new HttpError(400, '랜딩 경로(landingPath) 길이가 너무 깁니다.')
+  }
+
+  if (landingToken.length > LIMITS.landingToken) {
+    throw new HttpError(400, '랜딩 토큰(landingToken) 길이가 너무 깁니다.')
+  }
+
+  if (queryString.length > LIMITS.queryString) {
+    throw new HttpError(400, '쿼리 문자열(queryString) 길이가 너무 깁니다.')
+  }
+
+  if (userAgent.length > LIMITS.userAgent) {
+    throw new HttpError(400, '사용자 정보(userAgent) 길이가 너무 깁니다.')
+  }
+
+  return {
+    incidentAfter2025,
+    source,
+    pagePath,
+    landingPath,
+    landingToken,
+    landingKeyword,
+    queryString,
+    userAgent,
+  }
+}
+
 const formatPhoneForDisplay = (phone) => {
   const digits = toTrimmedString(phone).replace(/[^0-9]/g, '')
 
@@ -416,6 +466,51 @@ export default async function handler(req, res) {
     const app = getFirebaseApp()
     const db = getFirestore(app)
     const body = toRequestBody(req.body)
+    const action = toTrimmedString(body.action)
+
+    if (action === 'block-ineligible-incident') {
+      const payload = validateIneligibleIncidentBlockPayload(body)
+      const clientIp = getClientIp(req)
+      const createdAt = new Date()
+
+      if (!clientIp) {
+        throw new HttpError(400, '클라이언트 IP를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')
+      }
+
+      const clientIpHash = createHash('sha256').update(clientIp).digest('hex')
+      const blockRef = db.collection('consultationIpBlocks').doc(clientIpHash)
+      let blocked = false
+
+      await db.runTransaction(async (transaction) => {
+        const blockSnapshot = await transaction.get(blockRef)
+
+        if (blockSnapshot.exists) {
+          return
+        }
+
+        blocked = true
+        transaction.set(blockRef, {
+          blocked: true,
+          blockedAt: FieldValue.serverTimestamp(),
+          firstCreatedAtClient: createdAt.toISOString(),
+          source: payload.source,
+          reason: 'ineligible-incident-before-2025',
+          incidentAfter2025: payload.incidentAfter2025,
+          pagePath: payload.pagePath,
+          landingPath: payload.landingPath,
+          landingToken: payload.landingToken,
+          landingKeyword: payload.landingKeyword,
+          queryString: payload.queryString,
+          userAgent: payload.userAgent,
+        })
+      })
+
+      return res.status(200).json({
+        ok: true,
+        blocked,
+      })
+    }
+
     const payload = validateConsultationPayload(body)
     const clientIp = getClientIp(req)
     const createdAt = new Date()
