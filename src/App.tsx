@@ -1468,12 +1468,16 @@ function App() {
 
   const renderConsultationChoiceFields = (namePrefix: string) => (
     <>
-      <fieldset
+      <div
         className={`consultation-choice-field ${
           consultationAfter2025Locked ? 'consultation-choice-field-disabled' : ''
         }`}
+        role="radiogroup"
+        aria-labelledby={`${namePrefix}-incident-after-2025-title`}
       >
-        <legend className="consultation-choice-title">25년 이후 사건입니까</legend>
+        <p className="consultation-choice-title" id={`${namePrefix}-incident-after-2025-title`}>
+          25년 이후 사건입니까
+        </p>
         <div className="consultation-choice-options">
           {(['yes', 'no'] as const).map((value) => (
             <label
@@ -1495,10 +1499,16 @@ function App() {
             </label>
           ))}
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="consultation-choice-field">
-        <legend className="consultation-choice-title">500만원 이상 피해입니까</legend>
+      <div
+        className="consultation-choice-field"
+        role="radiogroup"
+        aria-labelledby={`${namePrefix}-damage-over-five-million-title`}
+      >
+        <p className="consultation-choice-title" id={`${namePrefix}-damage-over-five-million-title`}>
+          500만원 이상 피해입니까
+        </p>
         <div className="consultation-choice-options">
           {(['yes', 'no'] as const).map((value) => (
             <label
@@ -1518,7 +1528,7 @@ function App() {
             </label>
           ))}
         </div>
-      </fieldset>
+      </div>
     </>
   )
 
