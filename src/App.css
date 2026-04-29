@@ -10,7 +10,7 @@
   --card-bg: rgba(255, 252, 245, 0.95);
   --shadow: 0 14px 30px rgba(16, 23, 33, 0.12);
   --max-width: 1120px;
-  --quick-apply-reserve: calc(76px + var(--safe-area-bottom));
+  --quick-apply-reserve: calc(96px + var(--safe-area-bottom));
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -1373,16 +1373,19 @@ main {
 
 .quick-apply-form .consultation-choice-field {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 48px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  min-height: 60px;
   padding: 7px 10px;
 }
 
 .quick-apply-form .consultation-choice-title {
-  flex: 1;
+  flex: none;
   margin: 0;
   font-size: 12px;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
@@ -1925,7 +1928,7 @@ main {
 
 @media (max-width: 900px) {
   :root {
-    --quick-apply-reserve: calc(62px + var(--safe-area-bottom));
+    --quick-apply-reserve: calc(84px + var(--safe-area-bottom));
   }
 
   .app-shell::before {
@@ -2373,16 +2376,18 @@ main {
   }
 
   .quick-apply-form .consultation-choice-field {
-    min-height: 42px;
-    padding: 6px 8px;
+    min-height: 58px;
+    padding: 5px 8px;
+    gap: 4px;
   }
 
   .quick-apply-form .consultation-choice-title {
     font-size: 11px;
+    line-height: 1.2;
   }
 
   .quick-apply-form .consultation-choice-option {
-    min-height: 28px;
+    min-height: 27px;
     padding: 4px 7px;
     font-size: 11px;
   }
@@ -2555,7 +2560,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --quick-apply-reserve: calc(62px + var(--safe-area-bottom));
+    --quick-apply-reserve: calc(84px + var(--safe-area-bottom));
   }
 
   .app-shell::before {
