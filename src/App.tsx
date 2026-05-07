@@ -46,6 +46,13 @@ import './App.css'
 type PageRoute = 'home' | 'lawyers' | 'companies'
 type AuthViewMode = 'login' | 'signup'
 type ConsultationYesNo = '' | 'yes' | 'no'
+type GoogleTag = (command: 'event', action: string, params: Record<string, unknown>) => void
+
+declare global {
+  interface Window {
+    gtag?: GoogleTag
+  }
+}
 
 type RollingCase = {
   id: string
@@ -92,6 +99,7 @@ const POWERLINK_GENERATE_API_URL = (import.meta.env.VITE_POWERLINK_GENERATE_API_
 const KAKAO_OPEN_CHAT_URL = 'http://pf.kakao.com/_txdqSn/chat'
 const CONTACT_PHONE_NUMBER = '1551-7203'
 const CONTACT_PHONE_TEL = `tel:${CONTACT_PHONE_NUMBER.replace(/[^0-9+]/g, '')}`
+const GOOGLE_ADS_CONVERSION_SEND_TO = 'AW-16949684264/I91fCL6M-qMcEKjQnpI_'
 const HERO_TYPING_TEXT = '나란에서 해결할 수 없다면\n그\u00A0어디서도\u00A0해결할\u00A0수\u00A0없습니다.'
 const HERO_STAT_ITEMS = [
   { label: '누적 상담건수', value: 36489 },
@@ -195,6 +203,14 @@ const resolveLegacyHashRoute = (hash: string): PageRoute | null => {
 }
 
 const getRoutePath = (route: PageRoute): string => ROUTE_PATHS[route]
+
+const sendGoogleAdsConsultationConversion = () => {
+  window.gtag?.('event', 'conversion', {
+    send_to: GOOGLE_ADS_CONVERSION_SEND_TO,
+    value: 1.0,
+    currency: 'KRW',
+  })
+}
 
 const defaultRollingCases: RollingCase[] = [
   {
@@ -1457,6 +1473,7 @@ function App() {
       setConsultationAfter2025Input('')
       setConsultationAfter2025Locked(false)
       setConsultationDamageOverFiveMillionInput('')
+      sendGoogleAdsConsultationConversion()
       window.alert('신청이 완료되었습니다.')
     } catch (error) {
       console.error(error)
