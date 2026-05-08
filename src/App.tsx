@@ -190,9 +190,9 @@ const SEO_META_BY_ROUTE: Record<PageRoute, SeoMeta> = {
     path: '/lawyers',
   },
   companies: {
-    title: '사기업체 사례 | 법무법인 나란',
-    description: '투자사기, 부업사기, 로맨스스캠 등 실제 사기업체 사례를 확인하고 피해회복 상담을 신청하세요.',
-    keywords: `사기업체 사례, 사기 피해 사례, 피해회복 상담, ${DEFAULT_SEO_KEYWORDS}`,
+    title: '사기업체 게시판 | 법무법인 나란',
+    description: '투자사기, 부업사기, 로맨스스캠 등 실제 사기업체 사례를 게시판 형식으로 확인하고 피해회복 상담을 신청하세요.',
+    keywords: `사기업체 게시판, 사기업체 사례 게시판, 사기 업체 게시판, 사기 피해 게시판, 사기업체 목록, 사기 피해 사례, 피해회복 상담, ${DEFAULT_SEO_KEYWORDS}`,
     path: '/companies',
   },
 }
@@ -244,6 +244,53 @@ const upsertCanonicalLink = (href: string) => {
   }
 
   link.href = href
+}
+
+const ROUTE_STRUCTURED_DATA_SCRIPT_ID = 'route-structured-data'
+
+const upsertRouteStructuredData = (data: Record<string, unknown> | null) => {
+  const existingScript = document.getElementById(ROUTE_STRUCTURED_DATA_SCRIPT_ID) as HTMLScriptElement | null
+
+  if (!data) {
+    existingScript?.remove()
+    return
+  }
+
+  const script = existingScript ?? document.createElement('script')
+
+  if (!existingScript) {
+    script.id = ROUTE_STRUCTURED_DATA_SCRIPT_ID
+    script.type = 'application/ld+json'
+    document.head.appendChild(script)
+  }
+
+  script.textContent = JSON.stringify(data)
+}
+
+const getRouteStructuredData = (route: PageRoute, seoMeta: SeoMeta, canonicalUrl: string) => {
+  if (route !== 'companies') {
+    return null
+  }
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: seoMeta.title,
+    description: seoMeta.description,
+    url: canonicalUrl,
+    inLanguage: 'ko-KR',
+    isPartOf: {
+      '@type': 'WebSite',
+      name: '법무법인 나란',
+      url: SITE_BASE_URL,
+    },
+    about: ['사기업체 게시판', '사기 피해 사례', '피해회복 상담'],
+    mainEntity: {
+      '@type': 'ItemList',
+      name: '사기업체 사례 게시판',
+      description: '금융사기 의심 업체 및 사기 피해 사례를 모아 확인하는 게시판입니다.',
+    },
+  }
 }
 
 const normalizePathname = (pathname: string): string => {
@@ -704,6 +751,7 @@ function App() {
     upsertMetaTag('name', 'twitter:title', seoMeta.title)
     upsertMetaTag('name', 'twitter:description', seoMeta.description)
     upsertCanonicalLink(canonicalUrl)
+    upsertRouteStructuredData(getRouteStructuredData(route, seoMeta, canonicalUrl))
   }, [route, landingPowerlinkKeyword])
 
   const displayRollingCases = rollingCases.length > 0 ? rollingCases : defaultRollingCases
@@ -2398,11 +2446,6 @@ function App() {
                 <h2>접수즉시 전담 변호사가 연락드립니다.</h2>
                 <h2>10분 이내 무료 전화 상담</h2>
                 <p>접수 즉시 전담 변호사가 연락드립니다.</p>
-                <p className="quick-form-recovery-copy">
-                  경찰신고만으로는 피해금을 되찾을 수 없습니다.
-                  <br />
-                  지금 바로 대응해 피해금 회복이 가능합니다.
-                </p>
 
                 <form className="quick-form" onSubmit={handleConsultationSubmit}>
                   <input
@@ -2502,6 +2545,16 @@ function App() {
           <section className="companies-page reveal-on-scroll" aria-label="사기업체 사례">
             <div className="companies-banner-wrap">
               <img src={bannerImg} alt="사기업체 배너" className="companies-banner" />
+              <div className="companies-banner-content">
+                <h2>
+                  경찰신고만으로는 피해금을 되찾을 수 없습니다.
+                  <br />
+                  지금 바로 대응해 피해금 회복이 가능합니다.
+                </h2>
+                <button type="button" className="companies-banner-cta" onClick={moveToQuickFormSection}>
+                  신청 바로가기
+                </button>
+              </div>
             </div>
 
             <div className="section-wrap companies-grid-wrap">

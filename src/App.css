@@ -1163,17 +1163,9 @@ main {
   font-size: clamp(16px, 1vw, 20px);
 }
 
-.quick-form-inner .quick-form-recovery-copy {
-  margin: 24px auto 0;
-  color: #1d222a;
-  font-size: clamp(18px, 1.25vw, 22px);
-  font-weight: 700;
-  line-height: 1.45;
-}
-
 .quick-form {
   width: min(100%, 540px);
-  margin: 34px auto 0;
+  margin: 46px auto 0;
   display: grid;
   gap: 12px;
 }
@@ -1534,17 +1526,74 @@ main {
 }
 
 .companies-banner-wrap {
+  position: relative;
   width: 100%;
   height: clamp(240px, 30vw, 420px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
   overflow: hidden;
   background: #dce1e8;
+  text-align: center;
+}
+
+.companies-banner-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(8, 23, 39, 0.34) 0%, rgba(8, 23, 39, 0.58) 100%);
 }
 
 .companies-banner {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.companies-banner-content {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+}
+
+.companies-banner-content h2 {
+  margin: 0;
+  color: #f8fcff;
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-shadow: 0 10px 24px rgba(3, 13, 25, 0.46);
+  word-break: keep-all;
+}
+
+.companies-banner-cta {
+  min-width: 190px;
+  height: 54px;
+  border: none;
+  border-radius: 999px;
+  padding: 0 26px;
+  color: #f8fcff;
+  background: linear-gradient(135deg, #5488b4 0%, #3d79a6 100%);
+  box-shadow: 0 14px 24px rgba(3, 18, 34, 0.28);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.companies-banner-cta:hover,
+.companies-banner-cta:focus-visible {
+  box-shadow: 0 18px 30px rgba(3, 18, 34, 0.36);
+  transform: translateY(-1px);
 }
 
 .companies-grid-wrap {
@@ -2314,13 +2363,8 @@ main {
     font-size: 14px;
   }
 
-  .quick-form-inner .quick-form-recovery-copy {
-    margin-top: 18px;
-    font-size: 16px;
-  }
-
   .quick-form {
-    margin-top: 24px;
+    margin-top: 28px;
   }
 
   .quick-form input,
@@ -2429,7 +2473,24 @@ main {
   }
 
   .companies-banner-wrap {
-    height: clamp(180px, 52vw, 270px);
+    height: clamp(260px, 74vw, 330px);
+    padding: 26px 16px;
+  }
+
+  .companies-banner-content {
+    gap: 16px;
+  }
+
+  .companies-banner-content h2 {
+    font-size: 21px;
+    line-height: 1.34;
+  }
+
+  .companies-banner-cta {
+    min-width: 150px;
+    height: 44px;
+    padding: 0 20px;
+    font-size: 15px;
   }
 
   .companies-grid-wrap {
