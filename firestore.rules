@@ -167,7 +167,7 @@ service cloud.firestore {
 
     // 네이버 파워링크 URL 관리
     match /powerlinkLinks/{docId} {
-      allow read: if isAdmin();
+      allow read: if true;
       allow create: if isAdmin() && validPowerlinkLink(request.resource.data);
       allow update: if false;
       allow delete: if isAdmin();

@@ -77,6 +77,13 @@ type PowerlinkLink = {
   url: string
 }
 
+type SeoMeta = {
+  title: string
+  description: string
+  keywords: string
+  path: string
+}
+
 type LawyerProfile = {
   name: string
   role: string
@@ -141,7 +148,7 @@ const getPowerlinkTokenFromPath = (pathname: string): string => {
 
   try {
     return decodeURIComponent(rawToken).trim()
-  } catch (error) {
+  } catch {
     return rawToken.trim()
   }
 }
@@ -150,6 +157,93 @@ const ROUTE_PATHS: Record<PageRoute, string> = {
   home: '/',
   lawyers: '/lawyers',
   companies: '/companies',
+}
+
+const SITE_BASE_URL = (
+  (import.meta.env.VITE_SITE_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
+  'https://naranfintech.com'
+)
+
+const DEFAULT_SEO_KEYWORDS = [
+  '법무법인 나란',
+  '투자사기 변호사',
+  '코인사기 변호사',
+  '금융사기',
+  '로맨스스캠',
+  '부업사기',
+  '피해회복',
+  '무료상담',
+].join(', ')
+
+const SEO_META_BY_ROUTE: Record<PageRoute, SeoMeta> = {
+  home: {
+    title: '법무법인 나란 | 금융사기 피해회복 상담',
+    description:
+      '법무법인 나란은 투자사기, 코인사기, 로맨스스캠, 부업사기 등 금융사기 피해회복 상담을 신속하게 지원합니다.',
+    keywords: DEFAULT_SEO_KEYWORDS,
+    path: '/',
+  },
+  lawyers: {
+    title: '변호사 소개 | 법무법인 나란',
+    description: '법무법인 나란의 형사, 부동산, 금융사기 피해회복 분야 변호사 프로필과 주요 경력을 확인하세요.',
+    keywords: `법무법인 나란 변호사, 서지원 변호사, 최지연 변호사, 정이든 변호사, ${DEFAULT_SEO_KEYWORDS}`,
+    path: '/lawyers',
+  },
+  companies: {
+    title: '사기업체 사례 | 법무법인 나란',
+    description: '투자사기, 부업사기, 로맨스스캠 등 실제 사기업체 사례를 확인하고 피해회복 상담을 신청하세요.',
+    keywords: `사기업체 사례, 사기 피해 사례, 피해회복 상담, ${DEFAULT_SEO_KEYWORDS}`,
+    path: '/companies',
+  },
+}
+
+const toAbsoluteSiteUrl = (path: string): string => {
+  try {
+    return new URL(path.replace(/^\//, ''), `${SITE_BASE_URL}/`).toString()
+  } catch {
+    return path
+  }
+}
+
+const getSeoMeta = (route: PageRoute, powerlinkKeyword: string): SeoMeta => {
+  const routeMeta = SEO_META_BY_ROUTE[route]
+  const keyword = powerlinkKeyword.trim()
+
+  if (route !== 'home' || !keyword) {
+    return routeMeta
+  }
+
+  return {
+    title: `${keyword} 피해회복 상담 | 법무법인 나란`,
+    description: `${keyword} 피해회복 상담을 법무법인 나란이 신속하게 지원합니다. 금융사기 피해 상담과 대응 방향을 확인하세요.`,
+    keywords: `${keyword}, ${DEFAULT_SEO_KEYWORDS}`,
+    path: routeMeta.path,
+  }
+}
+
+const upsertMetaTag = (attribute: 'name' | 'property', key: string, content: string) => {
+  const selector = `meta[${attribute}="${key}"]`
+  const existingMeta = document.head.querySelector<HTMLMetaElement>(selector)
+  const meta = existingMeta ?? document.createElement('meta')
+
+  if (!existingMeta) {
+    meta.setAttribute(attribute, key)
+    document.head.appendChild(meta)
+  }
+
+  meta.setAttribute('content', content)
+}
+
+const upsertCanonicalLink = (href: string) => {
+  const existingLink = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+  const link = existingLink ?? document.createElement('link')
+
+  if (!existingLink) {
+    link.rel = 'canonical'
+    document.head.appendChild(link)
+  }
+
+  link.href = href
 }
 
 const normalizePathname = (pathname: string): string => {
@@ -595,6 +689,22 @@ function App() {
     return matchedLink?.keyword ?? ''
   }, [landingToken, powerlinkLinks])
   const showHeroTypingCursor = route === 'home' && heroTypedText.length < HERO_TYPING_TEXT.length
+
+  useEffect(() => {
+    const seoMeta = getSeoMeta(route, landingPowerlinkKeyword)
+    const canonicalUrl = toAbsoluteSiteUrl(seoMeta.path)
+
+    document.title = seoMeta.title
+    upsertMetaTag('name', 'description', seoMeta.description)
+    upsertMetaTag('name', 'keywords', seoMeta.keywords)
+    upsertMetaTag('name', 'robots', 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1')
+    upsertMetaTag('property', 'og:title', seoMeta.title)
+    upsertMetaTag('property', 'og:description', seoMeta.description)
+    upsertMetaTag('property', 'og:url', canonicalUrl)
+    upsertMetaTag('name', 'twitter:title', seoMeta.title)
+    upsertMetaTag('name', 'twitter:description', seoMeta.description)
+    upsertCanonicalLink(canonicalUrl)
+  }, [route, landingPowerlinkKeyword])
 
   const displayRollingCases = rollingCases.length > 0 ? rollingCases : defaultRollingCases
   const rollingLoopCases = useMemo(
@@ -2288,6 +2398,11 @@ function App() {
                 <h2>접수즉시 전담 변호사가 연락드립니다.</h2>
                 <h2>10분 이내 무료 전화 상담</h2>
                 <p>접수 즉시 전담 변호사가 연락드립니다.</p>
+                <p className="quick-form-recovery-copy">
+                  경찰신고만으로는 피해금을 되찾을 수 없습니다.
+                  <br />
+                  지금 바로 대응해 피해금 회복이 가능합니다.
+                </p>
 
                 <form className="quick-form" onSubmit={handleConsultationSubmit}>
                   <input
