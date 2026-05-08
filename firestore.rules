@@ -97,7 +97,7 @@ service cloud.firestore {
         && data.createdBy == request.auth.uid;
     }
 
-    function validCompanyCase(data) {
+    function hasValidCompanyCaseFields(data) {
       return data.keys().hasOnly([
           'name',
           'service',
@@ -112,8 +112,18 @@ service cloud.firestore {
         && hasText(data, 'description', 1, 2000)
         && hasImageField(data)
         && data.createdAt is timestamp
-        && data.createdBy is string
+        && data.createdBy is string;
+    }
+
+    function validCompanyCase(data) {
+      return hasValidCompanyCaseFields(data)
         && data.createdBy == request.auth.uid;
+    }
+
+    function validCompanyCaseUpdate() {
+      return hasValidCompanyCaseFields(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy;
     }
 
     function validPowerlinkLink(data) {
@@ -161,7 +171,7 @@ service cloud.firestore {
     match /companyCases/{docId} {
       allow read: if true;
       allow create: if isAdmin() && validCompanyCase(request.resource.data);
-      allow update: if false;
+      allow update: if isAdmin() && validCompanyCaseUpdate();
       allow delete: if isAdmin();
     }
 

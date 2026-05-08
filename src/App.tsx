@@ -19,6 +19,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
 import heroImg from './assets/hero.png'
@@ -108,11 +109,27 @@ const CONTACT_PHONE_NUMBER = '1551-7203'
 const CONTACT_PHONE_TEL = `tel:${CONTACT_PHONE_NUMBER.replace(/[^0-9+]/g, '')}`
 const GOOGLE_ADS_CONVERSION_SEND_TO = 'AW-16949684264/I91fCL6M-qMcEKjQnpI_'
 const HERO_TYPING_TEXT = '나란에서 해결할 수 없다면\n그\u00A0어디서도\u00A0해결할\u00A0수\u00A0없습니다.'
+const COMPANIES_BANNER_TYPING_TEXT_DESKTOP =
+  '경찰신고만으로는 피해금을 되찾을 수 없습니다.\n지금 바로 대응해 피해금 회복이 가능합니다.'
+const COMPANIES_BANNER_TYPING_TEXT_MOBILE =
+  '경찰신고만으로는\n피해금을 되찾을 수 없습니다.\n지금 바로 대응해\n피해금 회복이 가능합니다.'
 const HERO_STAT_ITEMS = [
   { label: '누적 상담건수', value: 36489 },
   { label: '누적 해결 건수', value: 999 },
   { label: '일 평균 상담건수', value: 146 },
 ] as const
+
+const getTypingDelay = (currentCharacter: string): number => {
+  if (currentCharacter === '\n') {
+    return 420
+  }
+
+  if (currentCharacter === ' ' || currentCharacter === '\u00A0') {
+    return 65
+  }
+
+  return 105
+}
 
 const normalizePowerlinkPathPrefix = (prefix: string): string => {
   const trimmed = prefix.trim()
@@ -312,12 +329,30 @@ const resolveRoute = (pathname: string): PageRoute => {
     return 'lawyers'
   }
 
-  if (cleaned === ROUTE_PATHS.companies) {
+  if (cleaned === ROUTE_PATHS.companies || cleaned.startsWith(`${ROUTE_PATHS.companies}/`)) {
     return 'companies'
   }
 
   return 'home'
 }
+
+const getCompanyCaseIdFromPath = (pathname: string): string => {
+  const cleaned = normalizePathname(pathname)
+
+  if (!cleaned.toLowerCase().startsWith(`${ROUTE_PATHS.companies}/`)) {
+    return ''
+  }
+
+  const rawId = cleaned.slice(ROUTE_PATHS.companies.length + 1).split('/')[0] ?? ''
+
+  try {
+    return decodeURIComponent(rawId).trim()
+  } catch {
+    return rawId.trim()
+  }
+}
+
+const getCompanyCasePath = (id: string): string => `${ROUTE_PATHS.companies}/${encodeURIComponent(id)}`
 
 const resolveLegacyHashRoute = (hash: string): PageRoute | null => {
   const rawHash = hash.trim()
@@ -438,6 +473,19 @@ const reviewCards = [
       '좋게 해결되었고, 좋은 결과를',
       '얻게 되어 감사드립니다.',
     ],
+  },
+]
+
+const faqItems = [
+  {
+    question: '사기 피해금을 실제로 돌려받을 수 있나요?',
+    answer:
+      '네, 가능합니다. 사기업체의 계좌에 자금이 남아 있거나 추적 가능한 자산이 있는 경우, 계좌 동결과 법적 절차를 통해 회수할 수 있습니다. 초동 대응이 빠를수록 회수율은 높아집니다.',
+  },
+  {
+    question: '단체 채팅방에서 다들 수익 인증을 하는데 믿어도 되나요?',
+    answer:
+      '최근 투자사기에서는 바람잡이 계정을 활용해 허위 수익 인증이나 성공 사례를 반복적으로 보여주는 경우가 많습니다. 실제 투자자가 아닌 운영진 계정일 가능성도 있어 주의가 필요합니다.',
   },
 ]
 
@@ -666,6 +714,9 @@ const runWithPermissionRetry = async <T,>(params: {
 
 function App() {
   const [route, setRoute] = useState<PageRoute>(() => resolveRoute(window.location.pathname))
+  const [selectedCompanyCaseId, setSelectedCompanyCaseId] = useState(() =>
+    getCompanyCaseIdFromPath(window.location.pathname),
+  )
   const rollingTrackRef = useRef<HTMLDivElement | null>(null)
   const rollingImageInputRef = useRef<HTMLInputElement | null>(null)
   const companyImageInputRef = useRef<HTMLInputElement | null>(null)
@@ -690,6 +741,7 @@ function App() {
 
   const [rollingCases, setRollingCases] = useState<RollingCase[]>([])
   const [companyCases, setCompanyCases] = useState<CompanyCase[]>([])
+  const [companyCasesLoaded, setCompanyCasesLoaded] = useState(!isFirebaseConfigured)
   const [powerlinkLinks, setPowerlinkLinks] = useState<PowerlinkLink[]>([])
 
   const [adminOpen, setAdminOpen] = useState(false)
@@ -707,6 +759,8 @@ function App() {
   const [companyDescriptionInput, setCompanyDescriptionInput] = useState('')
   const [companyImageFile, setCompanyImageFile] = useState<File | null>(null)
   const [companyUploadBusy, setCompanyUploadBusy] = useState(false)
+  const [companyEditingCaseId, setCompanyEditingCaseId] = useState('')
+  const [companySearchInput, setCompanySearchInput] = useState('')
 
   const [consultationNameInput, setConsultationNameInput] = useState('')
   const [consultationPhoneInput, setConsultationPhoneInput] = useState('')
@@ -722,6 +776,8 @@ function App() {
   const [powerlinkKeywordInput, setPowerlinkKeywordInput] = useState('')
   const [powerlinkGenerateBusy, setPowerlinkGenerateBusy] = useState(false)
   const [heroTypedText, setHeroTypedText] = useState('')
+  const [companiesBannerTypedText, setCompaniesBannerTypedText] = useState('')
+  const [isCompactViewport, setIsCompactViewport] = useState(() => window.matchMedia('(max-width: 900px)').matches)
   const [heroStatValues, setHeroStatValues] = useState<number[]>(() => HERO_STAT_ITEMS.map(() => 0))
   const [heroStatsShouldAnimate, setHeroStatsShouldAnimate] = useState(false)
 
@@ -736,6 +792,27 @@ function App() {
     return matchedLink?.keyword ?? ''
   }, [landingToken, powerlinkLinks])
   const showHeroTypingCursor = route === 'home' && heroTypedText.length < HERO_TYPING_TEXT.length
+  const companiesBannerTypingText = isCompactViewport
+    ? COMPANIES_BANNER_TYPING_TEXT_MOBILE
+    : COMPANIES_BANNER_TYPING_TEXT_DESKTOP
+  const showCompaniesTypingCursor =
+    route === 'companies' && companiesBannerTypedText.length < companiesBannerTypingText.length
+  const normalizedCompanySearchTerm = companySearchInput.trim().toLocaleLowerCase('ko-KR')
+  const filteredCompanyCases = useMemo(() => {
+    if (!normalizedCompanySearchTerm) {
+      return companyCases
+    }
+
+    return companyCases.filter((item) =>
+      [item.name, item.service, item.description].some((value) =>
+        value.toLocaleLowerCase('ko-KR').includes(normalizedCompanySearchTerm),
+      ),
+    )
+  }, [companyCases, normalizedCompanySearchTerm])
+  const selectedCompanyCase = useMemo(
+    () => companyCases.find((item) => item.id === selectedCompanyCaseId) ?? null,
+    [companyCases, selectedCompanyCaseId],
+  )
 
   useEffect(() => {
     const seoMeta = getSeoMeta(route, landingPowerlinkKeyword)
@@ -773,10 +850,13 @@ function App() {
       }
 
       setRoute(legacyRoute)
+      setSelectedCompanyCaseId(legacyRoute === 'companies' ? getCompanyCaseIdFromPath(legacyPath) : '')
     }
 
     const handlePopState = () => {
-      setRoute(resolveRoute(window.location.pathname))
+      const nextRoute = resolveRoute(window.location.pathname)
+      setRoute(nextRoute)
+      setSelectedCompanyCaseId(nextRoute === 'companies' ? getCompanyCaseIdFromPath(window.location.pathname) : '')
       window.scrollTo({ top: 0 })
     }
 
@@ -784,6 +864,20 @@ function App() {
 
     return () => {
       window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 900px)')
+    const handleMediaQueryChange = () => {
+      setIsCompactViewport(mediaQuery.matches)
+    }
+
+    handleMediaQueryChange()
+    mediaQuery.addEventListener('change', handleMediaQueryChange)
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaQueryChange)
     }
   }, [])
 
@@ -824,9 +918,7 @@ function App() {
         return
       }
 
-      const currentCharacter = HERO_TYPING_TEXT[typingIndex - 1]
-      const nextDelay = currentCharacter === '\n' ? 420 : currentCharacter === ' ' ? 65 : 105
-      timeoutId = window.setTimeout(typeNextCharacter, nextDelay)
+      timeoutId = window.setTimeout(typeNextCharacter, getTypingDelay(HERO_TYPING_TEXT[typingIndex - 1]))
     }
 
     timeoutId = window.setTimeout(typeNextCharacter, 340)
@@ -835,6 +927,34 @@ function App() {
       window.clearTimeout(timeoutId)
     }
   }, [route])
+
+  useEffect(() => {
+    if (route !== 'companies') {
+      setCompaniesBannerTypedText(companiesBannerTypingText)
+      return
+    }
+
+    let timeoutId = 0
+    let typingIndex = 0
+    setCompaniesBannerTypedText('')
+
+    const typeNextCharacter = () => {
+      typingIndex += 1
+      setCompaniesBannerTypedText(companiesBannerTypingText.slice(0, typingIndex))
+
+      if (typingIndex >= companiesBannerTypingText.length) {
+        return
+      }
+
+      timeoutId = window.setTimeout(typeNextCharacter, getTypingDelay(companiesBannerTypingText[typingIndex - 1]))
+    }
+
+    timeoutId = window.setTimeout(typeNextCharacter, 340)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [route, companiesBannerTypingText])
 
   useEffect(() => {
     if (route !== 'home') {
@@ -1193,9 +1313,11 @@ function App() {
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
+      setCompanyCasesLoaded(true)
       return
     }
 
+    setCompanyCasesLoaded(false)
     const companyCasesQuery = query(collection(db, 'companyCases'), orderBy('createdAt', 'desc'))
 
     const unsubscribe = onSnapshot(
@@ -1224,10 +1346,12 @@ function App() {
           .filter((item): item is CompanyCase => item !== null)
 
         setCompanyCases(mappedCases)
+        setCompanyCasesLoaded(true)
       },
       (error) => {
         console.error(error)
         setCompanyCases([])
+        setCompanyCasesLoaded(true)
       },
     )
 
@@ -1445,6 +1569,20 @@ function App() {
     }
 
     setRoute(nextRoute)
+    setSelectedCompanyCaseId('')
+    window.scrollTo({ top: 0 })
+  }
+
+  const navigateToCompanyCase = (id: string) => {
+    const nextPath = getCompanyCasePath(id)
+    const currentPath = normalizePathname(window.location.pathname)
+
+    if (currentPath !== normalizePathname(nextPath)) {
+      window.history.pushState({}, '', nextPath)
+    }
+
+    setRoute('companies')
+    setSelectedCompanyCaseId(id)
     window.scrollTo({ top: 0 })
   }
 
@@ -1458,6 +1596,15 @@ function App() {
 
     event.preventDefault()
     navigateToRoute(nextRoute)
+  }
+
+  const handleCompanyCaseNavigation = (event: MouseEvent<HTMLAnchorElement>, id: string) => {
+    if (!isPrimaryNavigationClick(event)) {
+      return
+    }
+
+    event.preventDefault()
+    navigateToCompanyCase(id)
   }
 
   const moveToQuickFormSection = () => {
@@ -1904,6 +2051,31 @@ function App() {
     }
   }
 
+  const resetCompanyCaseForm = () => {
+    setCompanyEditingCaseId('')
+    setCompanyNameInput('')
+    setCompanyServiceInput('')
+    setCompanyDescriptionInput('')
+    setCompanyImageFile(null)
+
+    if (companyImageInputRef.current) {
+      companyImageInputRef.current.value = ''
+    }
+  }
+
+  const handleStartEditCompanyCase = (item: CompanyCase) => {
+    clearAdminFeedback()
+    setCompanyEditingCaseId(item.id)
+    setCompanyNameInput(item.name)
+    setCompanyServiceInput(item.service)
+    setCompanyDescriptionInput(item.description)
+    setCompanyImageFile(null)
+
+    if (companyImageInputRef.current) {
+      companyImageInputRef.current.value = ''
+    }
+  }
+
   const handleAddCompanyCase = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     clearAdminFeedback()
@@ -1917,8 +2089,16 @@ function App() {
     const service = companyServiceInput.trim()
     const description = companyDescriptionInput.trim()
     const imageFile = companyImageFile
+    const editingCase = companyEditingCaseId
+      ? companyCases.find((item) => item.id === companyEditingCaseId) ?? null
+      : null
 
-    if (!name || !service || !description || !imageFile) {
+    if (companyEditingCaseId && !editingCase) {
+      setAdminError('수정할 사기업체 정보를 찾을 수 없습니다.')
+      return
+    }
+
+    if (!name || !service || !description || (!imageFile && !editingCase)) {
       setAdminError('사기업체 항목을 모두 입력해주세요.')
       return
     }
@@ -1941,11 +2121,41 @@ function App() {
     setCompanyUploadBusy(true)
 
     try {
-      const image = await uploadCaseImage({
-        file: imageFile,
-        user: currentUser,
-        bucketFolder: 'companyCases',
-      })
+      let image = editingCase?.image ?? ''
+
+      if (imageFile) {
+        image = await uploadCaseImage({
+          file: imageFile,
+          user: currentUser,
+          bucketFolder: 'companyCases',
+        })
+      }
+
+      if (editingCase) {
+        await updateDoc(doc(db, 'companyCases', editingCase.id), {
+          name,
+          service,
+          description,
+          image,
+        })
+
+        resetCompanyCaseForm()
+
+        if (imageFile && image !== editingCase.image) {
+          try {
+            await deleteCaseImageIfManaged(editingCase.image)
+          } catch (imageDeleteError) {
+            console.error(imageDeleteError)
+            setAdminNotice(
+              '사기업체 정보는 수정했지만 기존 업로드 이미지 삭제는 실패했습니다. Storage Rules를 확인해주세요.',
+            )
+            return
+          }
+        }
+
+        setAdminNotice('사기업체 정보를 수정했습니다.')
+        return
+      }
 
       await addDoc(collection(db, 'companyCases'), {
         name,
@@ -1956,18 +2166,17 @@ function App() {
         createdBy: currentUser.uid,
       })
 
-      setCompanyNameInput('')
-      setCompanyServiceInput('')
-      setCompanyDescriptionInput('')
-      setCompanyImageFile(null)
-      if (companyImageInputRef.current) {
-        companyImageInputRef.current.value = ''
-      }
+      resetCompanyCaseForm()
       setAdminNotice('사기업체 정보를 추가했습니다.')
     } catch (error) {
       console.error(error)
       setAdminError(
-        toUploadErrorMessage(error, '사기업체 정보 저장에 실패했습니다. Firebase 권한과 연결 상태를 확인해주세요.'),
+        toUploadErrorMessage(
+          error,
+          companyEditingCaseId
+            ? '사기업체 정보 수정에 실패했습니다. Firebase 권한과 연결 상태를 확인해주세요.'
+            : '사기업체 정보 저장에 실패했습니다. Firebase 권한과 연결 상태를 확인해주세요.',
+        ),
       )
     } finally {
       setCompanyUploadBusy(false)
@@ -1994,9 +2203,15 @@ function App() {
         setAdminNotice(
           '사기업체 정보는 삭제했지만 업로드 이미지 삭제는 실패했습니다. Storage Rules를 확인해주세요.',
         )
+        if (companyEditingCaseId === id) {
+          resetCompanyCaseForm()
+        }
         return
       }
 
+      if (companyEditingCaseId === id) {
+        resetCompanyCaseForm()
+      }
       setAdminNotice(removedManagedImage ? '사기업체 정보와 업로드 이미지를 삭제했습니다.' : '사기업체 정보를 삭제했습니다.')
     } catch (error) {
       console.error(error)
@@ -2131,8 +2346,12 @@ function App() {
               </article>
 
               <article className="admin-card">
-                <h3>사기업체 영역 추가</h3>
-                <p>사기업체 페이지에 노출할 정보를 입력하고 이미지 파일을 올리면 카드로 자동 생성됩니다.</p>
+                <h3>{companyEditingCaseId ? '사기업체 영역 수정' : '사기업체 영역 추가'}</h3>
+                <p>
+                  {companyEditingCaseId
+                    ? '수정할 내용을 입력하세요. 이미지 파일을 새로 선택하면 기존 이미지가 교체됩니다.'
+                    : '사기업체 페이지에 노출할 정보를 입력하고 이미지 파일을 올리면 카드로 자동 생성됩니다.'}
+                </p>
 
                 <form className="admin-form" onSubmit={handleAddCompanyCase}>
                   <label>
@@ -2169,19 +2388,37 @@ function App() {
                     />
                   </label>
                   <label>
-                    이미지 파일
+                    {companyEditingCaseId ? '이미지 파일 (선택)' : '이미지 파일'}
                     <input
                       ref={companyImageInputRef}
                       type="file"
                       accept="image/*"
                       onChange={(event) => setCompanyImageFile(event.target.files?.[0] ?? null)}
-                      required
+                      required={!companyEditingCaseId}
                       disabled={companyUploadBusy}
                     />
                   </label>
-                  <button type="submit" disabled={companyUploadBusy}>
-                    {companyUploadBusy ? '업로드 중...' : '사기업체 영역 추가'}
-                  </button>
+                  <div className="admin-form-actions">
+                    <button type="submit" disabled={companyUploadBusy}>
+                      {companyUploadBusy
+                        ? companyEditingCaseId
+                          ? '수정 중...'
+                          : '업로드 중...'
+                        : companyEditingCaseId
+                          ? '수정 완료'
+                          : '사기업체 영역 추가'}
+                    </button>
+                    {companyEditingCaseId ? (
+                      <button
+                        type="button"
+                        className="admin-form-secondary"
+                        onClick={resetCompanyCaseForm}
+                        disabled={companyUploadBusy}
+                      >
+                        취소
+                      </button>
+                    ) : null}
+                  </div>
                 </form>
 
                 <div className="admin-list-wrap">
@@ -2195,9 +2432,14 @@ function App() {
                             <strong>{item.name}</strong>
                             <span>{item.description}</span>
                           </div>
-                          <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
-                            삭제
-                          </button>
+                          <div className="admin-item-actions">
+                            <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
+                              수정
+                            </button>
+                            <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
+                              삭제
+                            </button>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -2443,7 +2685,7 @@ function App() {
               ref={quickFormSectionRef}
             >
               <div className="section-wrap quick-form-inner">
-                <h2>접수즉시 전담 변호사가 연락드립니다.</h2>
+                <h2>접수 즉시 전담 변호사가 연락드립니다.</h2>
                 <h2>10분 이내 무료 전화 상담</h2>
                 <p>접수 즉시 전담 변호사가 연락드립니다.</p>
 
@@ -2546,10 +2788,13 @@ function App() {
             <div className="companies-banner-wrap">
               <img src={bannerImg} alt="사기업체 배너" className="companies-banner" />
               <div className="companies-banner-content">
-                <h2>
-                  경찰신고만으로는 피해금을 되찾을 수 없습니다.
-                  <br />
-                  지금 바로 대응해 피해금 회복이 가능합니다.
+                <h2 aria-label="경찰신고만으로는 피해금을 되찾을 수 없습니다. 지금 바로 대응해 피해금 회복이 가능합니다.">
+                  <span className="companies-typing-text">{companiesBannerTypedText || '\u00A0'}</span>
+                  {showCompaniesTypingCursor ? (
+                    <span className="companies-typing-cursor" aria-hidden="true">
+                      |
+                    </span>
+                  ) : null}
                 </h2>
                 <button type="button" className="companies-banner-cta" onClick={moveToQuickFormSection}>
                   신청 바로가기
@@ -2558,30 +2803,115 @@ function App() {
             </div>
 
             <div className="section-wrap companies-grid-wrap">
-              <div className="companies-grid">
-                {companyCases.length > 0
-                  ? companyCases.map((item) => (
-                      <article className="company-card company-card-filled" key={item.id}>
-                        <div className="company-card-thumb-wrap">
-                          <img src={item.image} alt={`${item.name} 이미지`} className="company-card-image" />
-                        </div>
-                        <p className="company-card-name">{item.name}</p>
-                        <p className="company-card-service">{item.service}</p>
-                        <p className="company-card-description">{item.description}</p>
-                      </article>
-                    ))
-                  : companyPlaceholders.map((_, index) => (
-                      <article className="company-card" key={`company-placeholder-${index}`}>
-                        <div className="company-card-thumb" aria-hidden="true" />
-                        <div className="company-card-line company-card-line-short" aria-hidden="true" />
-                        <div className="company-card-line" aria-hidden="true" />
-                        <div className="company-card-line company-card-line-mid" aria-hidden="true" />
-                      </article>
-                    ))}
-              </div>
+              {selectedCompanyCaseId ? (
+                selectedCompanyCase ? (
+                  <article className="company-detail">
+                    <button type="button" className="company-detail-back" onClick={() => navigateToRoute('companies')}>
+                      목록으로
+                    </button>
+                    <div className="company-detail-layout">
+                      <div className="company-detail-image-wrap">
+                        <img src={selectedCompanyCase.image} alt={`${selectedCompanyCase.name} 이미지`} />
+                      </div>
+                      <div className="company-detail-copy">
+                        <p className="company-detail-service">{selectedCompanyCase.service}</p>
+                        <h3>{selectedCompanyCase.name}</h3>
+                        <p className="company-detail-description">{selectedCompanyCase.description}</p>
+                        <button type="button" className="company-detail-cta" onClick={moveToQuickFormSection}>
+                          신청 바로가기
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ) : companyCasesLoaded ? (
+                  <div className="company-detail company-detail-empty">
+                    <p>게시물을 찾을 수 없습니다.</p>
+                    <button type="button" className="company-detail-back" onClick={() => navigateToRoute('companies')}>
+                      목록으로
+                    </button>
+                  </div>
+                ) : (
+                  <div className="company-detail company-detail-empty">
+                    <p>게시물을 불러오는 중입니다.</p>
+                  </div>
+                )
+              ) : (
+                <>
+                  <div className="company-search-row">
+                    <label className="visually-hidden" htmlFor="company-search">
+                      사기업체 검색
+                    </label>
+                    <div className="company-search-field">
+                      <input
+                        id="company-search"
+                        type="search"
+                        value={companySearchInput}
+                        onChange={(event) => setCompanySearchInput(event.target.value)}
+                        placeholder="사기업체명 검색"
+                        autoComplete="off"
+                      />
+                      {companySearchInput ? (
+                        <button
+                          type="button"
+                          className="company-search-clear"
+                          onClick={() => setCompanySearchInput('')}
+                          aria-label="검색어 지우기"
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {companyCases.length > 0 && filteredCompanyCases.length === 0 ? (
+                    <p className="companies-empty">검색 결과가 없습니다.</p>
+                  ) : (
+                    <div className="companies-grid">
+                      {companyCases.length > 0
+                        ? filteredCompanyCases.map((item) => (
+                            <a
+                              className="company-card company-card-filled company-card-link"
+                              href={getCompanyCasePath(item.id)}
+                              onClick={(event) => handleCompanyCaseNavigation(event, item.id)}
+                              key={item.id}
+                            >
+                              <div className="company-card-thumb-wrap">
+                                <img src={item.image} alt={`${item.name} 이미지`} className="company-card-image" />
+                              </div>
+                              <p className="company-card-name">{item.name}</p>
+                            </a>
+                          ))
+                        : companyPlaceholders.map((_, index) => (
+                            <article className="company-card" key={`company-placeholder-${index}`}>
+                              <div className="company-card-thumb" aria-hidden="true" />
+                              <div className="company-card-line company-card-line-short" aria-hidden="true" />
+                            </article>
+                          ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </section>
         )}
+
+        <section className="faq-section reveal-on-scroll" aria-label="자주 묻는 질문">
+          <div className="section-wrap faq-inner">
+            <div className="faq-head">
+              <p>Q&A</p>
+              <h2>사기 피해회복 자주 묻는 질문</h2>
+            </div>
+
+            <div className="faq-list">
+              {faqItems.map((item) => (
+                <article className="faq-card" key={item.question}>
+                  <h3>{item.question}</h3>
+                  <p>{item.answer}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
 
       <section className="quick-apply-bar" aria-label="하단 고정 간편 신청">

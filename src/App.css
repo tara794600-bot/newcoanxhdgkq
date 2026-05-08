@@ -39,6 +39,18 @@
   pointer-events: none;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .top-nav {
   position: relative;
   z-index: 20;
@@ -266,6 +278,23 @@
   font-weight: 700;
   cursor: pointer;
   background: linear-gradient(135deg, #4c80ae 0%, #325f87 100%);
+}
+
+.admin-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-form button.admin-form-secondary {
+  color: #314056;
+  background: #e6edf5;
+}
+
+.admin-form button:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
 }
 
 .admin-list-wrap {
@@ -1560,7 +1589,7 @@ main {
   z-index: 2;
   display: grid;
   justify-items: center;
-  gap: 22px;
+  gap: 30px;
 }
 
 .companies-banner-content h2 {
@@ -1572,6 +1601,19 @@ main {
   letter-spacing: 0;
   text-shadow: 0 10px 24px rgba(3, 13, 25, 0.46);
   word-break: keep-all;
+  white-space: pre-line;
+}
+
+.companies-typing-text {
+  white-space: pre-line;
+}
+
+.companies-typing-cursor {
+  display: inline-block;
+  margin-left: 0.08em;
+  color: #7ed9ff;
+  font-weight: 500;
+  animation: hero-cursor-blink 1s steps(1, end) infinite;
 }
 
 .companies-banner-cta {
@@ -1600,6 +1642,75 @@ main {
   padding: 42px 0 74px;
 }
 
+.company-search-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.company-search-field {
+  position: relative;
+  width: min(100%, 540px);
+}
+
+.company-search-field input {
+  width: 100%;
+  height: 54px;
+  border: 1px solid #d5dde8;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1f2734;
+  box-shadow: 0 10px 20px rgba(36, 48, 66, 0.07);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 0 52px 0 18px;
+  outline: none;
+}
+
+.company-search-field input:focus {
+  border-color: #3d79a6;
+  box-shadow:
+    0 10px 20px rgba(36, 48, 66, 0.08),
+    0 0 0 3px rgba(61, 121, 166, 0.16);
+}
+
+.company-search-field input::placeholder {
+  color: #8996a8;
+  font-weight: 500;
+}
+
+.company-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  transform: translateY(-50%);
+  border: none;
+  border-radius: 50%;
+  background: #edf2f7;
+  color: #526173;
+  font-family: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.company-search-clear:hover,
+.company-search-clear:focus-visible {
+  background: #dfe8f2;
+  color: #1f2734;
+}
+
+.companies-empty {
+  margin: 34px 0 0;
+  color: #6b7686;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .companies-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1611,7 +1722,7 @@ main {
   border: 1px solid #e6e6e6;
   background: #ececeb;
   padding: 12px;
-  min-height: 272px;
+  min-height: 214px;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -1621,6 +1732,24 @@ main {
   border-color: #d8dee5;
   background: #f7f9fc;
   box-shadow: 0 10px 18px rgba(36, 48, 66, 0.08);
+}
+
+.company-card-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.company-card-link:hover,
+.company-card-link:focus-visible {
+  border-color: #b9cde0;
+  box-shadow: 0 16px 28px rgba(36, 48, 66, 0.14);
+  transform: translateY(-2px);
+  outline: none;
 }
 
 .company-card-thumb-wrap {
@@ -1644,6 +1773,120 @@ main {
   font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
+}
+
+.company-detail {
+  border: 1px solid #d8dee5;
+  border-radius: 14px;
+  background: #f7f9fc;
+  padding: 22px;
+  box-shadow: 0 12px 24px rgba(36, 48, 66, 0.08);
+}
+
+.company-detail-back {
+  border: 1px solid #cdd8e5;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3d5f7d;
+  min-height: 40px;
+  padding: 0 18px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.company-detail-back:hover,
+.company-detail-back:focus-visible {
+  border-color: #3d79a6;
+  color: #1f4f76;
+}
+
+.company-detail-layout {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 46%) minmax(0, 54%);
+  gap: 28px;
+  align-items: start;
+}
+
+.company-detail-image-wrap {
+  border-radius: 10px;
+  overflow: hidden;
+  background: #dfe6ef;
+}
+
+.company-detail-image-wrap img {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  display: block;
+  object-fit: cover;
+}
+
+.company-detail-copy {
+  display: grid;
+  align-content: start;
+}
+
+.company-detail-service {
+  width: fit-content;
+  margin: 0;
+  border-radius: 999px;
+  background: #e7f0f8;
+  color: #3d79a6;
+  padding: 8px 13px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.company-detail-copy h3 {
+  margin: 18px 0 0;
+  color: #1f2734;
+  font-size: clamp(30px, 3vw, 46px);
+  line-height: 1.18;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+.company-detail-description {
+  margin: 18px 0 0;
+  color: #526173;
+  font-size: 17px;
+  line-height: 1.72;
+  white-space: pre-line;
+}
+
+.company-detail-cta {
+  justify-self: start;
+  margin-top: 26px;
+  min-width: 170px;
+  height: 50px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5488b4 0%, #3d79a6 100%);
+  color: #ffffff;
+  box-shadow: 0 12px 22px rgba(3, 18, 34, 0.2);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.company-detail-empty {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 46px 18px;
+  text-align: center;
+}
+
+.company-detail-empty p {
+  margin: 0;
+  color: #526173;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .company-card-service {
@@ -1921,6 +2164,66 @@ main {
 .consulting-form button:hover,
 .consulting-form button:focus-visible {
   box-shadow: 0 10px 22px rgba(29, 45, 69, 0.28);
+}
+
+.faq-section {
+  background: #f6f8fb;
+  padding: 72px 0 78px;
+}
+
+.faq-inner {
+  display: grid;
+  gap: 26px;
+}
+
+.faq-head {
+  text-align: center;
+}
+
+.faq-head p {
+  margin: 0;
+  color: #3d79a6;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.faq-head h2 {
+  margin: 8px 0 0;
+  color: #1f2734;
+  font-size: clamp(30px, 3vw, 46px);
+  line-height: 1.24;
+  letter-spacing: 0;
+}
+
+.faq-list {
+  display: grid;
+  gap: 14px;
+}
+
+.faq-card {
+  border: 1px solid #d8dee5;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 24px 28px;
+  box-shadow: 0 10px 20px rgba(36, 48, 66, 0.06);
+}
+
+.faq-card h3 {
+  margin: 0;
+  color: #1f2734;
+  font-size: clamp(20px, 1.6vw, 26px);
+  line-height: 1.35;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+.faq-card p {
+  margin: 12px 0 0;
+  color: #526173;
+  font-size: clamp(15px, 1vw, 18px);
+  line-height: 1.72;
+  word-break: keep-all;
 }
 
 .site-footer {
@@ -2478,7 +2781,7 @@ main {
   }
 
   .companies-banner-content {
-    gap: 16px;
+    gap: 24px;
   }
 
   .companies-banner-content h2 {
@@ -2487,6 +2790,7 @@ main {
   }
 
   .companies-banner-cta {
+    margin-top: 4px;
     min-width: 150px;
     height: 44px;
     padding: 0 20px;
@@ -2496,6 +2800,23 @@ main {
   .companies-grid-wrap {
     width: min(var(--max-width), calc(100% - 28px));
     padding: 22px 0 48px;
+  }
+
+  .company-search-row {
+    margin-bottom: 16px;
+  }
+
+  .company-search-field input {
+    height: 48px;
+    border-radius: 10px;
+    font-size: 15px;
+    padding-left: 14px;
+  }
+
+  .company-search-clear {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
   }
 
   .companies-grid {
@@ -2537,6 +2858,43 @@ main {
 
   .company-card-line {
     height: 8px;
+  }
+
+  .company-detail {
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .company-detail-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .company-detail-image-wrap {
+    border-radius: 8px;
+  }
+
+  .company-detail-image-wrap img {
+    min-height: 0;
+    aspect-ratio: 122 / 73;
+  }
+
+  .company-detail-copy h3 {
+    margin-top: 14px;
+    font-size: clamp(24px, 6.4vw, 32px);
+  }
+
+  .company-detail-description {
+    margin-top: 14px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .company-detail-cta {
+    margin-top: 20px;
+    min-width: 150px;
+    height: 46px;
+    font-size: 15px;
   }
 
   .lawyers-page {
@@ -2606,6 +2964,40 @@ main {
 
   .lawyer-profile-photo {
     width: min(88%, 290px);
+  }
+
+  .faq-section {
+    padding: 52px 0 58px;
+  }
+
+  .faq-inner {
+    gap: 18px;
+  }
+
+  .faq-head {
+    text-align: left;
+  }
+
+  .faq-head p {
+    font-size: 13px;
+  }
+
+  .faq-head h2 {
+    font-size: clamp(24px, 6.4vw, 32px);
+  }
+
+  .faq-card {
+    padding: 18px 16px;
+  }
+
+  .faq-card h3 {
+    font-size: clamp(17px, 4.6vw, 22px);
+  }
+
+  .faq-card p {
+    margin-top: 9px;
+    font-size: 14px;
+    line-height: 1.65;
   }
 
   .site-footer-inner {
@@ -2809,6 +3201,14 @@ main {
     height: 50px;
   }
 
+  .companies-banner-content {
+    gap: 26px;
+  }
+
+  .companies-banner-cta {
+    margin-top: 6px;
+  }
+
   .companies-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
@@ -2830,10 +3230,38 @@ main {
     font-size: clamp(10px, 2.9vw, 12px);
   }
 
+  .company-search-field input {
+    height: 44px;
+    font-size: 14px;
+  }
+
   .company-card-service,
   .company-card-description {
     font-size: clamp(8px, 2.45vw, 10px);
     line-height: 1.35;
+  }
+
+  .company-detail {
+    padding: 12px;
+  }
+
+  .company-detail-back {
+    min-height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  .company-detail-service {
+    padding: 7px 11px;
+    font-size: 12px;
+  }
+
+  .company-detail-copy h3 {
+    font-size: clamp(21px, 6vw, 27px);
+  }
+
+  .company-detail-description {
+    font-size: 13px;
   }
 
   .lawyers-page-head h2 {
@@ -2854,6 +3282,22 @@ main {
 
   .lawyer-profile-history {
     font-size: 11px;
+  }
+
+  .faq-section {
+    padding: 44px 0 50px;
+  }
+
+  .faq-card {
+    padding: 16px 14px;
+  }
+
+  .faq-card h3 {
+    font-size: clamp(16px, 4.7vw, 19px);
+  }
+
+  .faq-card p {
+    font-size: 13px;
   }
 }
 
