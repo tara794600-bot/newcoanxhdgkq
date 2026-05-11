@@ -15,6 +15,8 @@ const LIMITS = {
   landingToken: 600,
   landingKeyword: 120,
   queryString: 800,
+  referrer: 800,
+  visitSource: 20,
   userAgent: 500,
 }
 
@@ -37,6 +39,108 @@ const formatYesNoForDisplay = (value) => {
   }
 
   return '-'
+}
+
+const normalizeVisitSource = (value) => {
+  const normalized = toTrimmedString(value).toLowerCase()
+
+  if (normalized === 'naver' || normalized === '네이버') {
+    return 'naver'
+  }
+
+  if (normalized === 'google' || normalized === '구글') {
+    return 'google'
+  }
+
+  return ''
+}
+
+const isGoogleChromeBrowser = (userAgent) => {
+  const normalizedUserAgent = toTrimmedString(userAgent).toLowerCase()
+  const isChromeLike =
+    normalizedUserAgent.includes('chrome/') ||
+    normalizedUserAgent.includes('crios/') ||
+    normalizedUserAgent.includes('gsa/')
+
+  if (!isChromeLike) {
+    return false
+  }
+
+  return ![
+    'naver',
+    'whale',
+    'edg/',
+    'edge/',
+    'opr/',
+    'opera',
+    'samsungbrowser',
+    'kakaotalk',
+    'fbav',
+    'instagram',
+    ' wv',
+    'firefox',
+    'fxios',
+  ].some((marker) => normalizedUserAgent.includes(marker))
+}
+
+const detectVisitSource = ({ visitSource, source, landingToken, queryString, referrer, userAgent }) => {
+  const explicitVisitSource = normalizeVisitSource(visitSource)
+
+  if (explicitVisitSource) {
+    return explicitVisitSource
+  }
+
+  const normalizedSource = toTrimmedString(source).toLowerCase()
+  const normalizedLandingToken = toTrimmedString(landingToken)
+  const normalizedQueryString = toTrimmedString(queryString).toLowerCase()
+  const normalizedReferrer = toTrimmedString(referrer).toLowerCase()
+  const normalizedUserAgent = toTrimmedString(userAgent).toLowerCase()
+
+  if (normalizedUserAgent.includes('naver') || normalizedUserAgent.includes('whale')) {
+    return 'naver'
+  }
+
+  if (isGoogleChromeBrowser(userAgent)) {
+    return 'google'
+  }
+
+  const hasNaverSignal =
+    Boolean(normalizedLandingToken) ||
+    normalizedSource.includes('naver') ||
+    normalizedReferrer.includes('naver.') ||
+    normalizedQueryString.includes('utm_source=naver') ||
+    normalizedQueryString.includes('n_keyword') ||
+    normalizedQueryString.includes('n_query') ||
+    normalizedQueryString.includes('n_campaign')
+
+  if (hasNaverSignal) {
+    return 'naver'
+  }
+
+  const hasGoogleSignal =
+    normalizedSource.includes('google') ||
+    normalizedReferrer.includes('google.') ||
+    normalizedReferrer.includes('doubleclick.net') ||
+    normalizedQueryString.includes('utm_source=google') ||
+    normalizedQueryString.includes('gclid') ||
+    normalizedQueryString.includes('gbraid') ||
+    normalizedQueryString.includes('wbraid')
+
+  return hasGoogleSignal ? 'google' : ''
+}
+
+const formatVisitSourceForDisplay = (visitSource) => {
+  const normalizedVisitSource = normalizeVisitSource(visitSource)
+
+  if (normalizedVisitSource === 'naver') {
+    return '네이버'
+  }
+
+  if (normalizedVisitSource === 'google') {
+    return '구글'
+  }
+
+  return ''
 }
 
 const toHeaderCandidates = (value) => {
@@ -177,14 +281,23 @@ const validateConsultationPayload = (payload) => {
   const phone = toTrimmedString(payload.phone)
   const details = toTrimmedString(payload.details)
   const incidentAfter2025 = toTrimmedString(payload.incidentAfter2025).slice(0, LIMITS.yesNo)
-  const damageOverFiveMillion = toTrimmedString(payload.damageOverFiveMillion).slice(0, LIMITS.yesNo)
   const source = toTrimmedString(payload.source) || 'website-quick-form'
   const pagePath = toTrimmedString(payload.pagePath) || '#/'
   const landingPath = toTrimmedString(payload.landingPath) || '/'
   const landingToken = toTrimmedString(payload.landingToken)
   const queryString = toTrimmedString(payload.queryString)
+  const referrer = toTrimmedString(payload.referrer)
+  const rawVisitSource = toTrimmedString(payload.visitSource)
   const userAgent = toTrimmedString(payload.userAgent)
   const landingKeyword = decodePowerlinkKeyword(landingToken)
+  const visitSource = detectVisitSource({
+    visitSource: rawVisitSource,
+    source,
+    landingToken,
+    queryString,
+    referrer,
+    userAgent,
+  })
 
   if (!name || !phone || !details) {
     throw new HttpError(400, '이름, 연락처, 피해 내용을 모두 입력해주세요.')
@@ -192,10 +305,6 @@ const validateConsultationPayload = (payload) => {
 
   if (incidentAfter2025 !== 'yes') {
     throw new HttpError(400, '2025년 이후 사건만 신청할 수 있습니다.')
-  }
-
-  if (damageOverFiveMillion !== 'yes' && damageOverFiveMillion !== 'no') {
-    throw new HttpError(400, '500만원 이상 피해 여부를 선택해주세요.')
   }
 
   if (name.length > LIMITS.name) {
@@ -230,6 +339,14 @@ const validateConsultationPayload = (payload) => {
     throw new HttpError(400, '쿼리 문자열(queryString) 길이가 너무 깁니다.')
   }
 
+  if (referrer.length > LIMITS.referrer) {
+    throw new HttpError(400, '이전 경로(referrer) 길이가 너무 깁니다.')
+  }
+
+  if (rawVisitSource.length > LIMITS.visitSource) {
+    throw new HttpError(400, '접속 출처(visitSource) 길이가 너무 깁니다.')
+  }
+
   if (userAgent.length > LIMITS.userAgent) {
     throw new HttpError(400, '사용자 정보(userAgent) 길이가 너무 깁니다.')
   }
@@ -239,13 +356,14 @@ const validateConsultationPayload = (payload) => {
     phone,
     details,
     incidentAfter2025,
-    damageOverFiveMillion,
     source,
     pagePath,
     landingPath,
     landingToken,
     landingKeyword,
     queryString,
+    referrer,
+    visitSource,
     userAgent,
   }
 }
@@ -257,8 +375,18 @@ const validateIneligibleIncidentBlockPayload = (payload) => {
   const landingPath = toTrimmedString(payload.landingPath) || '/'
   const landingToken = toTrimmedString(payload.landingToken)
   const queryString = toTrimmedString(payload.queryString)
+  const referrer = toTrimmedString(payload.referrer)
+  const rawVisitSource = toTrimmedString(payload.visitSource)
   const userAgent = toTrimmedString(payload.userAgent)
   const landingKeyword = decodePowerlinkKeyword(landingToken)
+  const visitSource = detectVisitSource({
+    visitSource: rawVisitSource,
+    source,
+    landingToken,
+    queryString,
+    referrer,
+    userAgent,
+  })
 
   if (incidentAfter2025 !== 'no') {
     throw new HttpError(400, '차단 대상이 아닙니다.')
@@ -284,6 +412,14 @@ const validateIneligibleIncidentBlockPayload = (payload) => {
     throw new HttpError(400, '쿼리 문자열(queryString) 길이가 너무 깁니다.')
   }
 
+  if (referrer.length > LIMITS.referrer) {
+    throw new HttpError(400, '이전 경로(referrer) 길이가 너무 깁니다.')
+  }
+
+  if (rawVisitSource.length > LIMITS.visitSource) {
+    throw new HttpError(400, '접속 출처(visitSource) 길이가 너무 깁니다.')
+  }
+
   if (userAgent.length > LIMITS.userAgent) {
     throw new HttpError(400, '사용자 정보(userAgent) 길이가 너무 깁니다.')
   }
@@ -296,6 +432,8 @@ const validateIneligibleIncidentBlockPayload = (payload) => {
     landingToken,
     landingKeyword,
     queryString,
+    referrer,
+    visitSource,
     userAgent,
   }
 }
@@ -321,14 +459,24 @@ const formatPhoneForDisplay = (phone) => {
 const buildTelegramMessage = (request) => {
   const formattedPhone = formatPhoneForDisplay(request.phone)
   const details = toTrimmedString(request.details)
+  const visitSourceLabel = formatVisitSourceForDisplay(
+    detectVisitSource({
+      visitSource: request.visitSource,
+      source: request.source,
+      landingToken: request.landingToken,
+      queryString: request.queryString,
+      referrer: request.referrer,
+      userAgent: request.userAgent,
+    }),
+  )
 
   return [
+    ...(visitSourceLabel ? [visitSourceLabel, ''] : []),
     '📩 새로운 신청',
     '',
     `👤 이름: ${request.name}`,
     `📞 연락처: ${formattedPhone}`,
     `🗓️ 25년 이후 사건: ${formatYesNoForDisplay(request.incidentAfter2025)}`,
-    `💰 500만원 이상 피해: ${formatYesNoForDisplay(request.damageOverFiveMillion)}`,
     `✅ 피해내용: ${details}`,
   ].join('\n')
 }
@@ -402,7 +550,7 @@ const appendGoogleSheet = async (request) => {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${sheetName}!A:E`,
+    range: `${sheetName}!A:D`,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: {
@@ -411,7 +559,6 @@ const appendGoogleSheet = async (request) => {
           request.name,
           formatPhoneForDisplay(request.phone),
           formatYesNoForDisplay(request.incidentAfter2025),
-          formatYesNoForDisplay(request.damageOverFiveMillion),
           request.details,
         ],
       ],
@@ -501,6 +648,8 @@ export default async function handler(req, res) {
           landingToken: payload.landingToken,
           landingKeyword: payload.landingKeyword,
           queryString: payload.queryString,
+          referrer: payload.referrer,
+          visitSource: payload.visitSource,
           userAgent: payload.userAgent,
         })
       })
@@ -540,13 +689,14 @@ export default async function handler(req, res) {
         phone: payload.phone,
         details: payload.details,
         incidentAfter2025: payload.incidentAfter2025,
-        damageOverFiveMillion: payload.damageOverFiveMillion,
         source: payload.source,
         pagePath: payload.pagePath,
         landingPath: payload.landingPath,
         landingToken: payload.landingToken,
         landingKeyword: payload.landingKeyword,
         queryString: payload.queryString,
+        referrer: payload.referrer,
+        visitSource: payload.visitSource,
         userAgent: payload.userAgent,
         clientIpHash,
         createdAt: FieldValue.serverTimestamp(),
@@ -560,6 +710,7 @@ export default async function handler(req, res) {
         firstRequestId: docRef.id,
         firstCreatedAtClient: createdAt.toISOString(),
         source: payload.source,
+        visitSource: payload.visitSource,
       })
     })
 

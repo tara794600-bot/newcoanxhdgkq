@@ -100,7 +100,7 @@
 }
 
 .menu a {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink);
@@ -927,6 +927,18 @@ main {
   box-shadow: 0 14px 26px rgba(74, 64, 52, 0.12);
 }
 
+.rolling-card.rolling-card-image-only {
+  padding: 0;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.rolling-card-image-only img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .rolling-card-category {
   margin: 0;
   text-align: center;
@@ -1367,22 +1379,30 @@ main {
 
 .quick-apply-scroll {
   flex: 1;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 3px;
 }
 
 .quick-apply-form {
-  min-width: 1220px;
+  width: 100%;
+  min-width: 0;
   display: grid;
-  grid-template-columns: 150px 180px 214px 236px minmax(290px, 1fr) 128px;
+  grid-template-columns:
+    minmax(96px, 0.72fr)
+    minmax(124px, 0.88fr)
+    minmax(154px, 1fr)
+    minmax(180px, 1.8fr)
+    minmax(92px, 0.72fr);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .quick-apply-form input,
 .quick-apply-form textarea {
   width: 100%;
+  min-width: 0;
   min-height: 48px;
   border: 1px solid rgba(99, 119, 145, 0.32);
   border-radius: 10px;
@@ -1407,7 +1427,7 @@ main {
   justify-content: center;
   gap: 5px;
   min-height: 60px;
-  padding: 7px 10px;
+  padding: 7px 9px;
 }
 
 .quick-apply-form .consultation-choice-title {
@@ -1442,6 +1462,7 @@ main {
 .quick-apply-form button {
   border: none;
   border-radius: 999px;
+  min-width: 0;
   min-height: 48px;
   color: #f3f9ff;
   font-size: 15px;
@@ -1810,6 +1831,11 @@ main {
   align-items: start;
 }
 
+.company-detail-layout-stacked {
+  grid-template-columns: 1fr;
+  gap: 22px;
+}
+
 .company-detail-image-wrap {
   border-radius: 10px;
   overflow: hidden;
@@ -1822,6 +1848,12 @@ main {
   min-height: 320px;
   display: block;
   object-fit: cover;
+}
+
+.company-detail-layout-stacked .company-detail-image-wrap img {
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 122 / 73;
 }
 
 .company-detail-copy {
@@ -1872,6 +1904,33 @@ main {
   font-size: 16px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.company-detail-kakao-section {
+  margin-top: 28px;
+}
+
+.company-detail-kakao-banner {
+  border-radius: 10px;
+  overflow: hidden;
+  display: block;
+  background: #f9df20;
+  text-decoration: none;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.company-detail-kakao-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.company-detail-kakao-banner:hover,
+.company-detail-kakao-banner:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 26px rgba(50, 43, 0, 0.16);
 }
 
 .company-detail-empty {
@@ -2719,8 +2778,8 @@ main {
   }
 
   .quick-apply-form {
-    min-width: 1040px;
-    grid-template-columns: 118px 150px 180px 204px minmax(250px, 1fr) 110px;
+    min-width: 820px;
+    grid-template-columns: 118px 150px 180px minmax(250px, 1fr) 110px;
     gap: 6px;
   }
 
@@ -2897,6 +2956,10 @@ main {
     font-size: 15px;
   }
 
+  .company-detail-kakao-section {
+    margin-top: 20px;
+  }
+
   .lawyers-page {
     margin-top: 16px;
   }
@@ -3043,7 +3106,7 @@ main {
   }
 
   .menu a {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .hero-eyebrow {
@@ -3173,8 +3236,8 @@ main {
   }
 
   .quick-apply-form {
-    min-width: 940px;
-    grid-template-columns: 106px 132px 166px 186px minmax(220px, 1fr) 96px;
+    min-width: 760px;
+    grid-template-columns: 106px 132px 166px minmax(220px, 1fr) 96px;
     gap: 6px;
   }
 
@@ -3262,6 +3325,10 @@ main {
 
   .company-detail-description {
     font-size: 13px;
+  }
+
+  .company-detail-kakao-banner {
+    border-radius: 8px;
   }
 
   .lawyers-page-head h2 {

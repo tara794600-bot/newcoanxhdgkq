@@ -25,10 +25,6 @@ import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'fi
 import heroImg from './assets/hero.png'
 import i1Img from './assets/i1.png'
 import i2Img from './assets/i2.png'
-import roll1Img from './assets/roll1.png'
-import roll2Img from './assets/roll2.png'
-import roll3Img from './assets/roll3.png'
-import roll4Img from './assets/roll4.png'
 import picImg from './assets/pic.png'
 import icon1Img from './assets/icon1.png'
 import icon2Img from './assets/icon2.png'
@@ -37,6 +33,7 @@ import icon4Img from './assets/icon4.png'
 import ssImg from './assets/ss.png'
 import logoImg from './assets/logo.png'
 import kakaoIconImg from './assets/kakao.png'
+import naranKakaoBannerImg from './assets/나란kakao.jpg'
 import law1Img from './assets/law1.png'
 import law2Img from './assets/law2.png'
 import law3Img from './assets/law3.png'
@@ -47,10 +44,12 @@ import './App.css'
 type PageRoute = 'home' | 'lawyers' | 'companies'
 type AuthViewMode = 'login' | 'signup'
 type ConsultationYesNo = '' | 'yes' | 'no'
-type GoogleTag = (command: 'event', action: string, params: Record<string, unknown>) => void
+type VisitSource = '' | 'naver' | 'google'
+type GoogleTag = (...args: unknown[]) => void
 
 declare global {
   interface Window {
+    dataLayer?: unknown[]
     gtag?: GoogleTag
   }
 }
@@ -62,6 +61,19 @@ type RollingCase = {
   result: string
   image: string
 }
+
+type RollingImageCard = {
+  id: string
+  kind: 'image'
+  image: string
+  imageAlt: string
+}
+
+type RollingDisplayCase = RollingCase & {
+  kind: 'case'
+}
+
+type RollingDisplayItem = RollingImageCard | RollingDisplayCase
 
 type CompanyCase = {
   id: string
@@ -105,7 +117,7 @@ const ADMIN_INVITE_CODE = (
 const CONSULTATION_API_URL = (import.meta.env.VITE_CONSULTATION_API_URL ?? '').trim()
 const POWERLINK_GENERATE_API_URL = (import.meta.env.VITE_POWERLINK_GENERATE_API_URL ?? '').trim()
 const KAKAO_OPEN_CHAT_URL = 'http://pf.kakao.com/_txdqSn/chat'
-const CONTACT_PHONE_NUMBER = '1551-7203'
+const CONTACT_PHONE_NUMBER = '1551-7202'
 const CONTACT_PHONE_TEL = `tel:${CONTACT_PHONE_NUMBER.replace(/[^0-9+]/g, '')}`
 const GOOGLE_ADS_CONVERSION_SEND_TO = 'AW-16949684264/I91fCL6M-qMcEKjQnpI_'
 const HERO_TYPING_TEXT = '나란에서 해결할 수 없다면\n그\u00A0어디서도\u00A0해결할\u00A0수\u00A0없습니다.'
@@ -178,7 +190,7 @@ const ROUTE_PATHS: Record<PageRoute, string> = {
 
 const SITE_BASE_URL = (
   (import.meta.env.VITE_SITE_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
-  'https://naranfintech.com'
+  'https://www.naranfintech.com'
 )
 
 const DEFAULT_SEO_KEYWORDS = [
@@ -380,44 +392,121 @@ const resolveLegacyHashRoute = (hash: string): PageRoute | null => {
 
 const getRoutePath = (route: PageRoute): string => ROUTE_PATHS[route]
 
+const isGoogleChromeBrowser = (userAgent: string): boolean => {
+  const normalizedUserAgent = userAgent.toLowerCase()
+  const isChromeLike =
+    normalizedUserAgent.includes('chrome/') ||
+    normalizedUserAgent.includes('crios/') ||
+    normalizedUserAgent.includes('gsa/')
+
+  if (!isChromeLike) {
+    return false
+  }
+
+  return ![
+    'naver',
+    'whale',
+    'edg/',
+    'edge/',
+    'opr/',
+    'opera',
+    'samsungbrowser',
+    'kakaotalk',
+    'fbav',
+    'instagram',
+    ' wv',
+    'firefox',
+    'fxios',
+  ].some((marker) => normalizedUserAgent.includes(marker))
+}
+
+const detectVisitSource = (params: {
+  landingToken: string
+  queryString: string
+  referrer: string
+  userAgent: string
+}): VisitSource => {
+  const landingToken = params.landingToken.trim()
+  const queryString = params.queryString.toLowerCase()
+  const referrer = params.referrer.toLowerCase()
+  const userAgent = params.userAgent.toLowerCase()
+
+  if (userAgent.includes('naver') || userAgent.includes('whale')) {
+    return 'naver'
+  }
+
+  if (isGoogleChromeBrowser(params.userAgent)) {
+    return 'google'
+  }
+
+  const hasNaverSignal =
+    Boolean(landingToken) ||
+    referrer.includes('naver.') ||
+    queryString.includes('utm_source=naver') ||
+    queryString.includes('n_keyword') ||
+    queryString.includes('n_query') ||
+    queryString.includes('n_campaign')
+
+  if (hasNaverSignal) {
+    return 'naver'
+  }
+
+  const hasGoogleSignal =
+    referrer.includes('google.') ||
+    referrer.includes('doubleclick.net') ||
+    queryString.includes('utm_source=google') ||
+    queryString.includes('gclid') ||
+    queryString.includes('gbraid') ||
+    queryString.includes('wbraid')
+
+  return hasGoogleSignal ? 'google' : ''
+}
+
 const sendGoogleAdsConsultationConversion = () => {
-  window.gtag?.('event', 'conversion', {
+  window.dataLayer = window.dataLayer || []
+  window.gtag =
+    window.gtag ||
+    ((...args: unknown[]) => {
+      window.dataLayer?.push(args)
+    })
+
+  window.gtag('event', 'conversion', {
     send_to: GOOGLE_ADS_CONVERSION_SEND_TO,
     value: 1.0,
     currency: 'KRW',
   })
 }
 
-const defaultRollingCases: RollingCase[] = [
-  {
-    id: 'default-1',
-    category: '민사',
-    title: '음주운전 상해',
-    result: '집행유예',
-    image: roll1Img,
-  },
-  {
-    id: 'default-2',
-    category: '음주운전',
-    title: '음주측정 거부',
-    result: '혐의없음',
-    image: roll2Img,
-  },
-  {
-    id: 'default-3',
-    category: '형사',
-    title: '1심 징역형 무면허 음주',
-    result: '집행유예',
-    image: roll3Img,
-  },
-  {
-    id: 'default-4',
-    category: '형사',
-    title: '준강간 구속영장 청구',
-    result: '영장기각',
-    image: roll4Img,
-  },
-]
+const rollingImageModules = {
+  ...import.meta.glob<string>('./rolling/*.{png,jpg,jpeg,webp,avif,gif,PNG,JPG,JPEG,WEBP,AVIF,GIF}', {
+    eager: true,
+    import: 'default',
+  }),
+  ...import.meta.glob<string>('./assets/rolling/*.{png,jpg,jpeg,webp,avif,gif,PNG,JPG,JPEG,WEBP,AVIF,GIF}', {
+    eager: true,
+    import: 'default',
+  }),
+}
+
+const toRollingImageName = (path: string): string => {
+  const fileName = path.split('/').pop()?.replace(/\.[^.]+$/, '') ?? '기본 롤링 이미지'
+  return fileName.replace(/[-_]+/g, ' ').trim() || '기본 롤링 이미지'
+}
+
+const rollingFolderDefaultCards: RollingImageCard[] = Object.entries(rollingImageModules)
+  .sort(([firstPath], [secondPath]) => firstPath.localeCompare(secondPath, 'ko-KR', { numeric: true }))
+  .map(([path, image], index) => {
+    const imageName = toRollingImageName(path)
+
+    return {
+      id: `default-rolling-${index + 1}-${imageName}`,
+      kind: 'image',
+      image,
+      imageAlt: `${imageName} 롤링 이미지`,
+    }
+  })
+
+const defaultRollingCards = rollingFolderDefaultCards
 
 const activeScamCases = [
   {
@@ -722,6 +811,9 @@ function App() {
   const companyImageInputRef = useRef<HTMLInputElement | null>(null)
   const quickFormSectionRef = useRef<HTMLElement | null>(null)
   const heroStatsBarRef = useRef<HTMLDivElement | null>(null)
+  const companyDetailImageRef = useRef<HTMLDivElement | null>(null)
+  const companyDetailCopyRef = useRef<HTMLDivElement | null>(null)
+  const companyDetailStackedRef = useRef(false)
   const shouldScrollToQuickFormRef = useRef(false)
   const adminEnrollmentInProgressRef = useRef(false)
   const ineligibleIncidentBlockInProgressRef = useRef(false)
@@ -767,8 +859,6 @@ function App() {
   const [consultationDetailsInput, setConsultationDetailsInput] = useState('')
   const [consultationAfter2025Input, setConsultationAfter2025Input] = useState<ConsultationYesNo>('')
   const [consultationAfter2025Locked, setConsultationAfter2025Locked] = useState(false)
-  const [consultationDamageOverFiveMillionInput, setConsultationDamageOverFiveMillionInput] =
-    useState<ConsultationYesNo>('')
   const [consultationBusy, setConsultationBusy] = useState(false)
   const [consultationNotice, setConsultationNotice] = useState('')
   const [consultationError, setConsultationError] = useState('')
@@ -778,6 +868,7 @@ function App() {
   const [heroTypedText, setHeroTypedText] = useState('')
   const [companiesBannerTypedText, setCompaniesBannerTypedText] = useState('')
   const [isCompactViewport, setIsCompactViewport] = useState(() => window.matchMedia('(max-width: 900px)').matches)
+  const [companyDetailStacked, setCompanyDetailStacked] = useState(false)
   const [heroStatValues, setHeroStatValues] = useState<number[]>(() => HERO_STAT_ITEMS.map(() => 0))
   const [heroStatsShouldAnimate, setHeroStatsShouldAnimate] = useState(false)
 
@@ -831,7 +922,10 @@ function App() {
     upsertRouteStructuredData(getRouteStructuredData(route, seoMeta, canonicalUrl))
   }, [route, landingPowerlinkKeyword])
 
-  const displayRollingCases = rollingCases.length > 0 ? rollingCases : defaultRollingCases
+  const displayRollingCases = useMemo<RollingDisplayItem[]>(
+    () => [...defaultRollingCards, ...rollingCases.map((item) => ({ ...item, kind: 'case' as const }))],
+    [rollingCases],
+  )
   const rollingLoopCases = useMemo(
     () => [...displayRollingCases, ...displayRollingCases, ...displayRollingCases],
     [displayRollingCases],
@@ -899,6 +993,54 @@ function App() {
       window.cancelAnimationFrame(frameId)
     }
   }, [route])
+
+  useEffect(() => {
+    companyDetailStackedRef.current = false
+    setCompanyDetailStacked(false)
+
+    if (route !== 'companies' || !selectedCompanyCase) {
+      return
+    }
+
+    const imageElement = companyDetailImageRef.current
+    const copyElement = companyDetailCopyRef.current
+
+    if (!imageElement || !copyElement) {
+      return
+    }
+
+    let frameId = 0
+    const updateDetailLayout = () => {
+      window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(() => {
+        if (companyDetailStackedRef.current) {
+          return
+        }
+
+        const imageHeight = imageElement.getBoundingClientRect().height
+        const copyHeight = copyElement.getBoundingClientRect().height
+        const baselineImageHeight = Math.max(imageHeight, 320)
+        const shouldStack = copyHeight > baselineImageHeight + 16
+
+        if (shouldStack) {
+          companyDetailStackedRef.current = true
+          setCompanyDetailStacked(true)
+        }
+      })
+    }
+
+    const resizeObserver = new ResizeObserver(updateDetailLayout)
+    resizeObserver.observe(imageElement)
+    resizeObserver.observe(copyElement)
+    window.addEventListener('resize', updateDetailLayout)
+    updateDetailLayout()
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateDetailLayout)
+    }
+  }, [route, selectedCompanyCase])
 
   useEffect(() => {
     if (route !== 'home') {
@@ -1641,6 +1783,15 @@ function App() {
 
     ineligibleIncidentBlockInProgressRef.current = true
     const endpoint = CONSULTATION_API_URL || '/api/consultation'
+    const queryString = window.location.search || ''
+    const referrer = document.referrer || ''
+    const userAgent = navigator.userAgent
+    const visitSource = detectVisitSource({
+      landingToken,
+      queryString,
+      referrer,
+      userAgent,
+    })
 
     try {
       const response = await fetch(endpoint, {
@@ -1655,8 +1806,10 @@ function App() {
           pagePath: getRoutePath(route),
           landingPath,
           landingToken,
-          queryString: window.location.search || '',
-          userAgent: navigator.userAgent,
+          queryString,
+          referrer,
+          userAgent,
+          visitSource,
         }),
       })
 
@@ -1692,10 +1845,6 @@ function App() {
     setConsultationError('')
   }
 
-  const handleConsultationDamageOverFiveMillionChange = (value: Exclude<ConsultationYesNo, ''>) => {
-    setConsultationDamageOverFiveMillionInput(value)
-  }
-
   const handleConsultationSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setConsultationError('')
@@ -1707,13 +1856,6 @@ function App() {
 
     if (consultationAfter2025Input !== 'yes') {
       const message = '2025년 이후 사건만 신청할 수 있습니다.'
-      setConsultationError(message)
-      window.alert(message)
-      return
-    }
-
-    if (!consultationDamageOverFiveMillionInput) {
-      const message = '500만원 이상 피해 여부를 선택해주세요.'
       setConsultationError(message)
       window.alert(message)
       return
@@ -1740,6 +1882,15 @@ function App() {
     }
 
     const endpoint = CONSULTATION_API_URL || '/api/consultation'
+    const queryString = window.location.search || ''
+    const referrer = document.referrer || ''
+    const userAgent = navigator.userAgent
+    const visitSource = detectVisitSource({
+      landingToken,
+      queryString,
+      referrer,
+      userAgent,
+    })
     setConsultationBusy(true)
 
     try {
@@ -1753,13 +1904,14 @@ function App() {
           phone,
           details,
           incidentAfter2025: consultationAfter2025Input,
-          damageOverFiveMillion: consultationDamageOverFiveMillionInput,
           source: landingToken ? 'naver-powerlink' : 'website-quick-form',
           pagePath: getRoutePath(route),
           landingPath,
           landingToken,
-          queryString: window.location.search || '',
-          userAgent: navigator.userAgent,
+          queryString,
+          referrer,
+          userAgent,
+          visitSource,
         }),
       })
 
@@ -1777,7 +1929,6 @@ function App() {
       setConsultationDetailsInput('')
       setConsultationAfter2025Input('')
       setConsultationAfter2025Locked(false)
-      setConsultationDamageOverFiveMillionInput('')
       sendGoogleAdsConsultationConversion()
       window.alert('신청이 완료되었습니다.')
     } catch (error) {
@@ -1816,35 +1967,6 @@ function App() {
                 onChange={() => handleConsultationAfter2025Change(value)}
                 required
                 disabled={consultationBusy || consultationAfter2025Locked}
-              />
-              <span>{value === 'yes' ? '예' : '아니요'}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div
-        className="consultation-choice-field"
-        role="radiogroup"
-        aria-labelledby={`${namePrefix}-damage-over-five-million-title`}
-      >
-        <p className="consultation-choice-title" id={`${namePrefix}-damage-over-five-million-title`}>
-          500만원 이상 피해입니까
-        </p>
-        <div className="consultation-choice-options">
-          {(['yes', 'no'] as const).map((value) => (
-            <label
-              className={`consultation-choice-option ${consultationBusy ? 'consultation-choice-option-disabled' : ''}`}
-              key={`${namePrefix}-damage-over-five-million-${value}`}
-            >
-              <input
-                type="radio"
-                name={`${namePrefix}-damage-over-five-million`}
-                value={value}
-                checked={consultationDamageOverFiveMillionInput === value}
-                onChange={() => handleConsultationDamageOverFiveMillionChange(value)}
-                required
-                disabled={consultationBusy}
               />
               <span>{value === 'yes' ? '예' : '아니요'}</span>
             </label>
@@ -2586,14 +2708,20 @@ function App() {
               <div className="rolling-track-mask">
                 <div className="rolling-track" ref={rollingTrackRef}>
                   {rollingLoopCases.map((item, index) => (
-                    <article className="rolling-card" key={`${item.id}-${index}`}>
-                      <p className="rolling-card-category">{item.category}</p>
-                      <h3>{item.title}</h3>
-                      <p className="rolling-card-result">{item.result}</p>
-                      <div className="rolling-card-image-wrap">
-                        <img src={item.image} alt={`${item.title} 사례 이미지`} />
-                      </div>
-                    </article>
+                    item.kind === 'image' ? (
+                      <article className="rolling-card rolling-card-image-only" key={`${item.id}-${index}`}>
+                        <img src={item.image} alt={item.imageAlt} />
+                      </article>
+                    ) : (
+                      <article className="rolling-card" key={`${item.id}-${index}`}>
+                        <p className="rolling-card-category">{item.category}</p>
+                        <h3>{item.title}</h3>
+                        <p className="rolling-card-result">{item.result}</p>
+                        <div className="rolling-card-image-wrap">
+                          <img src={item.image} alt={`${item.title} 사례 이미지`} />
+                        </div>
+                      </article>
+                    )
                   ))}
                 </div>
               </div>
@@ -2805,24 +2933,42 @@ function App() {
             <div className="section-wrap companies-grid-wrap">
               {selectedCompanyCaseId ? (
                 selectedCompanyCase ? (
-                  <article className="company-detail">
-                    <button type="button" className="company-detail-back" onClick={() => navigateToRoute('companies')}>
-                      목록으로
-                    </button>
-                    <div className="company-detail-layout">
-                      <div className="company-detail-image-wrap">
-                        <img src={selectedCompanyCase.image} alt={`${selectedCompanyCase.name} 이미지`} />
+                  <>
+                    <article className="company-detail">
+                      <button type="button" className="company-detail-back" onClick={() => navigateToRoute('companies')}>
+                        목록으로
+                      </button>
+                      <div
+                        className={`company-detail-layout ${
+                          companyDetailStacked ? 'company-detail-layout-stacked' : ''
+                        }`}
+                      >
+                        <div className="company-detail-image-wrap" ref={companyDetailImageRef}>
+                          <img src={selectedCompanyCase.image} alt={`${selectedCompanyCase.name} 이미지`} />
+                        </div>
+                        <div className="company-detail-copy" ref={companyDetailCopyRef}>
+                          <p className="company-detail-service">{selectedCompanyCase.service}</p>
+                          <h3>{selectedCompanyCase.name}</h3>
+                          <p className="company-detail-description">{selectedCompanyCase.description}</p>
+                          <button type="button" className="company-detail-cta" onClick={moveToQuickFormSection}>
+                            신청 바로가기
+                          </button>
+                        </div>
                       </div>
-                      <div className="company-detail-copy">
-                        <p className="company-detail-service">{selectedCompanyCase.service}</p>
-                        <h3>{selectedCompanyCase.name}</h3>
-                        <p className="company-detail-description">{selectedCompanyCase.description}</p>
-                        <button type="button" className="company-detail-cta" onClick={moveToQuickFormSection}>
-                          신청 바로가기
-                        </button>
-                      </div>
-                    </div>
-                  </article>
+                    </article>
+
+                    <section className="company-detail-kakao-section" aria-label="카카오톡 상담 배너">
+                      <a
+                        className="company-detail-kakao-banner"
+                        href={KAKAO_OPEN_CHAT_URL}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        aria-label="법무법인 나란 카카오톡 상담 열기"
+                      >
+                        <img src={naranKakaoBannerImg} alt="법무법인 나란 카카오톡 상담 안내" />
+                      </a>
+                    </section>
+                  </>
                 ) : companyCasesLoaded ? (
                   <div className="company-detail company-detail-empty">
                     <p>게시물을 찾을 수 없습니다.</p>
