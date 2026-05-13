@@ -2668,8 +2668,8 @@ function App() {
           </section>
         ) : null}
 
-        {route === 'admin' && isStaff && adminOpen && (
-          <section className="section-wrap admin-panel reveal-on-scroll" aria-label="관리자 창">
+        {route === 'admin' && isStaff && (
+          <section className="section-wrap admin-panel" aria-label="관리자 창">
             <div className="admin-panel-head">
               <h2>관리자 창</h2>
               <p>
