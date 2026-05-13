@@ -1054,7 +1054,7 @@ function App() {
     }
 
     return companyCases.filter((item) =>
-      [item.name, item.service, item.description].some((value) =>
+      [item.name, item.service].some((value) =>
         value.toLocaleLowerCase('ko-KR').includes(normalizedAdminCompanySearchTerm),
       ),
     )
@@ -2384,6 +2384,10 @@ function App() {
     if (companyImageInputRef.current) {
       companyImageInputRef.current.value = ''
     }
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
   }
 
   const handleAddCompanyCase = async (event: FormEvent<HTMLFormElement>) => {
@@ -2897,7 +2901,7 @@ function App() {
                           type="search"
                           value={adminCompanySearchInput}
                           onChange={(event) => setAdminCompanySearchInput(event.target.value)}
-                          placeholder="업체명, 유형, 설명 검색"
+                          placeholder="업체명, 유형 검색"
                           autoComplete="off"
                         />
                         {adminCompanySearchInput ? (
@@ -2919,7 +2923,6 @@ function App() {
                               <div>
                                 <p>{item.service}</p>
                                 <strong>{item.name}</strong>
-                                <span className="admin-item-description">{item.description}</span>
                               </div>
                               <div className="admin-item-actions">
                                 <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
