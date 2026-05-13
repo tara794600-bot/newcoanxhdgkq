@@ -119,7 +119,9 @@ const POWERLINK_GENERATE_API_URL = (import.meta.env.VITE_POWERLINK_GENERATE_API_
 const KAKAO_OPEN_CHAT_URL = 'http://pf.kakao.com/_txdqSn/chat'
 const CONTACT_PHONE_NUMBER = '1551-7202'
 const CONTACT_PHONE_TEL = `tel:${CONTACT_PHONE_NUMBER.replace(/[^0-9+]/g, '')}`
+const GOOGLE_ADS_ID = 'AW-16949684264'
 const GOOGLE_ADS_CONVERSION_SEND_TO = 'AW-16949684264/I91fCL6M-qMcEKjQnpI_'
+const GOOGLE_ADS_SCRIPT_ID = 'google-ads-gtag-script'
 const HERO_TYPING_TEXT = '나란에서 해결할 수 없다면\n그\u00A0어디서도\u00A0해결할\u00A0수\u00A0없습니다.'
 const COMPANIES_BANNER_TYPING_TEXT_DESKTOP =
   '경찰신고만으로는 피해금을 되찾을 수 없습니다.\n지금 바로 대응해 피해금 회복이 가능합니다.'
@@ -495,7 +497,9 @@ const detectVisitSource = (params: {
   return hasGoogleSignal ? 'google' : ''
 }
 
-const sendGoogleAdsConsultationConversion = () => {
+let googleAdsTagConfigured = false
+
+const initializeGoogleAdsTag = () => {
   window.dataLayer = window.dataLayer || []
   window.gtag =
     window.gtag ||
@@ -503,7 +507,30 @@ const sendGoogleAdsConsultationConversion = () => {
       window.dataLayer?.push(args)
     })
 
-  window.gtag('event', 'conversion', {
+  if (!document.getElementById(GOOGLE_ADS_SCRIPT_ID)) {
+    const script = document.createElement('script')
+    script.id = GOOGLE_ADS_SCRIPT_ID
+    script.async = true
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`
+    document.head.appendChild(script)
+  }
+
+  if (!googleAdsTagConfigured) {
+    window.gtag('js', new Date())
+    window.gtag('config', GOOGLE_ADS_ID)
+    googleAdsTagConfigured = true
+  }
+}
+
+const sendGoogleAdsConsultationConversion = () => {
+  initializeGoogleAdsTag()
+  const gtag = window.gtag
+
+  if (!gtag) {
+    return
+  }
+
+  gtag('event', 'conversion', {
     send_to: GOOGLE_ADS_CONVERSION_SEND_TO,
     value: 1.0,
     currency: 'KRW',
