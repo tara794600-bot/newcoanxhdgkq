@@ -789,11 +789,34 @@ const normalizeCompanyKeywordText = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
+const expandCompanyKeywordToken = (token: string): string[] => {
+  const candidates = new Set([token])
+  const suffixes = ['변호사', '무료상담', '상담', '피해회복', '피해금', '피해', '전문', '추천', '사기업체', '업체']
+  let cleanedToken = token
+
+  suffixes.forEach((suffix) => {
+    if (cleanedToken.endsWith(suffix)) {
+      cleanedToken = cleanedToken.slice(0, -suffix.length)
+    }
+  })
+
+  if (cleanedToken.length >= 2) {
+    candidates.add(cleanedToken)
+  }
+
+  if (cleanedToken.endsWith('사기') && cleanedToken.length > 2) {
+    candidates.add(cleanedToken.slice(0, -2))
+  }
+
+  return Array.from(candidates)
+}
+
 const getCompanyKeywordTokens = (keyword: string): string[] => {
   const tokens = normalizeCompanyKeywordText(keyword)
     .split(' ')
     .filter((token) => token.length >= 2 && !COMPANY_KEYWORD_STOPWORDS.has(token))
-    .flatMap((token) => (token.endsWith('사기') && token.length > 2 ? [token, token.slice(0, -2)] : [token]))
+    .flatMap(expandCompanyKeywordToken)
+    .filter((token) => token.length >= 2 && !COMPANY_KEYWORD_STOPWORDS.has(token))
   const focusedTokens = tokens.length > 1 ? tokens.filter((token) => token !== '사기') : tokens
 
   return Array.from(new Set(focusedTokens.length > 0 ? focusedTokens : tokens))
@@ -1131,6 +1154,13 @@ function App() {
       .filter((item) => companyCaseMatchesKeyword(item, landingPowerlinkKeyword))
       .slice(0, KEYWORD_COMPANY_CASE_LIMIT)
   }, [companyCases, landingPowerlinkKeyword])
+  const keywordSectionCompanyCases = useMemo(() => {
+    if (!landingPowerlinkKeyword) {
+      return []
+    }
+
+    return (keywordCompanyCases.length > 0 ? keywordCompanyCases : companyCases).slice(0, KEYWORD_COMPANY_CASE_LIMIT)
+  }, [companyCases, keywordCompanyCases, landingPowerlinkKeyword])
   const selectedCompanyCase = useMemo(
     () => companyCases.find((item) => item.id === selectedCompanyCaseId) ?? null,
     [companyCases, selectedCompanyCaseId],
@@ -1510,6 +1540,7 @@ function App() {
     displayRollingCases.length,
     companyCases.length,
     keywordCompanyCases.length,
+    keywordSectionCompanyCases.length,
     landingPowerlinkKeyword,
     powerlinkLinks.length,
   ])
@@ -3142,7 +3173,7 @@ function App() {
               </div>
             </section>
 
-            {landingPowerlinkKeyword && (!companyCasesLoaded || keywordCompanyCases.length > 0) ? (
+            {landingPowerlinkKeyword && (!companyCasesLoaded || keywordSectionCompanyCases.length > 0) ? (
               <section
                 className="keyword-company-section reveal-on-scroll"
                 aria-label={`${landingPowerlinkKeyword} 관련 사기업체 게시글`}
@@ -3158,8 +3189,8 @@ function App() {
                   </div>
 
                   <div className="companies-grid keyword-company-grid">
-                    {keywordCompanyCases.length > 0
-                      ? keywordCompanyCases.map((item) => (
+                    {keywordSectionCompanyCases.length > 0
+                      ? keywordSectionCompanyCases.map((item) => (
                           <a
                             className="company-card company-card-filled company-card-link"
                             href={getCompanyCasePath(item.id)}
