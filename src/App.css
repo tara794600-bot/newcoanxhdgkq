@@ -926,7 +926,7 @@ main {
 }
 
 .expert-card-left {
-  left: 180px;
+  left: 130px;
   top: clamp(460px, 60vh, 660px);
   width: 310px;
   animation: expert-fly-in-left 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
@@ -2611,7 +2611,7 @@ main {
 
 @media (max-width: 900px) {
   :root {
-    --quick-apply-reserve: calc(84px + var(--safe-area-bottom));
+    --quick-apply-reserve: var(--safe-area-bottom);
   }
 
   .app-shell::before {
@@ -3059,6 +3059,7 @@ main {
   }
 
   .quick-apply-bar {
+    display: none;
     padding: 10px 0 calc(10px + var(--safe-area-bottom));
   }
 
@@ -3424,7 +3425,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --quick-apply-reserve: calc(84px + var(--safe-area-bottom));
+    --quick-apply-reserve: var(--safe-area-bottom);
   }
 
   .app-shell::before {
