@@ -762,6 +762,69 @@ const lawyerProfiles: LawyerProfile[] = [
 ]
 
 const toTrimmedString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
+const KEYWORD_COMPANY_CASE_LIMIT = 8
+const COMPANY_KEYWORD_STOPWORDS = new Set([
+  '나란',
+  '법무법인',
+  '변호사',
+  '상담',
+  '무료상담',
+  '피해',
+  '피해금',
+  '피해회복',
+  '회복',
+  '전문',
+  '추천',
+  '사례',
+  '게시글',
+  '게시판',
+  '업체',
+  '사기업체',
+])
+
+const normalizeCompanyKeywordText = (value: string): string =>
+  value
+    .toLocaleLowerCase('ko-KR')
+    .replace(/[^0-9a-z가-힣]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const getCompanyKeywordTokens = (keyword: string): string[] => {
+  const tokens = normalizeCompanyKeywordText(keyword)
+    .split(' ')
+    .filter((token) => token.length >= 2 && !COMPANY_KEYWORD_STOPWORDS.has(token))
+    .flatMap((token) => (token.endsWith('사기') && token.length > 2 ? [token, token.slice(0, -2)] : [token]))
+  const focusedTokens = tokens.length > 1 ? tokens.filter((token) => token !== '사기') : tokens
+
+  return Array.from(new Set(focusedTokens.length > 0 ? focusedTokens : tokens))
+}
+
+const companyCaseMatchesKeyword = (item: CompanyCase, keyword: string): boolean => {
+  const normalizedKeyword = normalizeCompanyKeywordText(keyword)
+
+  if (!normalizedKeyword) {
+    return false
+  }
+
+  const normalizedKeywordTight = normalizedKeyword.replace(/\s/g, '')
+  const searchableText = normalizeCompanyKeywordText([item.name, item.service, item.description].join(' '))
+  const searchableTextTight = searchableText.replace(/\s/g, '')
+
+  if (searchableText.includes(normalizedKeyword) || searchableTextTight.includes(normalizedKeywordTight)) {
+    return true
+  }
+
+  const tokens = getCompanyKeywordTokens(keyword)
+
+  if (!tokens.length) {
+    return false
+  }
+
+  return tokens.some((token) => {
+    const tightToken = token.replace(/\s/g, '')
+    return searchableText.includes(token) || searchableTextTight.includes(tightToken)
+  })
+}
 
 const ROLLING_CASE_LIMITS = {
   category: 40,
@@ -1059,6 +1122,15 @@ function App() {
       ),
     )
   }, [companyCases, normalizedAdminCompanySearchTerm])
+  const keywordCompanyCases = useMemo(() => {
+    if (!landingPowerlinkKeyword) {
+      return []
+    }
+
+    return companyCases
+      .filter((item) => companyCaseMatchesKeyword(item, landingPowerlinkKeyword))
+      .slice(0, KEYWORD_COMPANY_CASE_LIMIT)
+  }, [companyCases, landingPowerlinkKeyword])
   const selectedCompanyCase = useMemo(
     () => companyCases.find((item) => item.id === selectedCompanyCaseId) ?? null,
     [companyCases, selectedCompanyCaseId],
@@ -1432,7 +1504,15 @@ function App() {
     return () => {
       observer.disconnect()
     }
-  }, [route, adminOpen, displayRollingCases.length, companyCases.length, powerlinkLinks.length])
+  }, [
+    route,
+    adminOpen,
+    displayRollingCases.length,
+    companyCases.length,
+    keywordCompanyCases.length,
+    landingPowerlinkKeyword,
+    powerlinkLinks.length,
+  ])
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -3007,23 +3087,16 @@ function App() {
                     대규모 사기 사건, 비상장주식부터 보이스피싱 단체 사기까지
                   </p>
                   {landingPowerlinkKeyword ? (
-                    <>
-                      <h1 className="hero-title-with-keyword" aria-label={`${landingPowerlinkKeyword} 피해회복 상담`}>
-                        <span className="hero-keyword-highlight">{landingPowerlinkKeyword}</span>
-                        <span className="hero-keyword-title-line">피해회복 상담</span>
-                      </h1>
-                      <p className="hero-keyword-subcopy">검색하신 키워드에 맞춰 전담 변호사가 상담을 준비합니다.</p>
-                    </>
-                  ) : (
-                    <h1 aria-label="나란에서 해결할 수 없다면 그 어디서도 해결할 수 없습니다.">
-                      <span className="hero-typing-text">{heroTypedText || '\u00A0'}</span>
-                      {showHeroTypingCursor ? (
-                        <span className="hero-typing-cursor" aria-hidden="true">
-                          |
-                        </span>
-                      ) : null}
-                    </h1>
-                  )}
+                    <p className="hero-keyword-highlight">{landingPowerlinkKeyword}</p>
+                  ) : null}
+                  <h1 aria-label="나란에서 해결할 수 없다면 그 어디서도 해결할 수 없습니다.">
+                    <span className="hero-typing-text">{heroTypedText || '\u00A0'}</span>
+                    {showHeroTypingCursor ? (
+                      <span className="hero-typing-cursor" aria-hidden="true">
+                        |
+                      </span>
+                    ) : null}
+                  </h1>
                 </div>
 
                 <div className="hero-stats-bar" ref={heroStatsBarRef} aria-label="상담 및 해결 통계">
@@ -3068,6 +3141,47 @@ function App() {
                 </div>
               </div>
             </section>
+
+            {landingPowerlinkKeyword && (!companyCasesLoaded || keywordCompanyCases.length > 0) ? (
+              <section
+                className="keyword-company-section reveal-on-scroll"
+                aria-label={`${landingPowerlinkKeyword} 관련 사기업체 게시글`}
+              >
+                <div className="section-wrap keyword-company-inner">
+                  <div className="keyword-company-head">
+                    <p>관련 사기업체 게시글</p>
+                    <h2>
+                      <span>{landingPowerlinkKeyword}</span>
+                      <br />
+                      관련 게시글
+                    </h2>
+                  </div>
+
+                  <div className="companies-grid keyword-company-grid">
+                    {keywordCompanyCases.length > 0
+                      ? keywordCompanyCases.map((item) => (
+                          <a
+                            className="company-card company-card-filled company-card-link"
+                            href={getCompanyCasePath(item.id)}
+                            onClick={(event) => handleCompanyCaseNavigation(event, item.id)}
+                            key={item.id}
+                          >
+                            <div className="company-card-thumb-wrap">
+                              <img src={item.image} alt={`${item.name} 이미지`} className="company-card-image" />
+                            </div>
+                            <p className="company-card-name">{item.name}</p>
+                          </a>
+                        ))
+                      : companyPlaceholders.slice(0, 4).map((_, index) => (
+                          <article className="company-card" key={`keyword-company-placeholder-${index}`}>
+                            <div className="company-card-thumb" aria-hidden="true" />
+                            <div className="company-card-line company-card-line-short" aria-hidden="true" />
+                          </article>
+                        ))}
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="rolling-section reveal-on-scroll" aria-label="성공사례 롤링 배너">
               <div className="section-wrap rolling-head">
