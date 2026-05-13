@@ -204,6 +204,39 @@ const DEFAULT_SEO_KEYWORDS = [
   '무료상담',
 ].join(', ')
 
+const NAVER_TRACKING_KEYWORD_PARAMS = ['n_query', 'n_keyword'] as const
+const TRACKED_NAVER_KEYWORD_LIMIT = 120
+
+const normalizeTrackedNaverKeyword = (value: unknown): string =>
+  toTrimmedString(value)
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, TRACKED_NAVER_KEYWORD_LIMIT)
+
+const getNaverTrackedKeywordFromQueryString = (queryString: string): string => {
+  const normalizedQueryString = queryString.trim().replace(/^\?/, '')
+
+  if (!normalizedQueryString) {
+    return ''
+  }
+
+  try {
+    const params = new URLSearchParams(normalizedQueryString)
+
+    for (const paramName of NAVER_TRACKING_KEYWORD_PARAMS) {
+      const keyword = normalizeTrackedNaverKeyword(params.get(paramName))
+
+      if (keyword) {
+        return keyword
+      }
+    }
+  } catch {
+    return ''
+  }
+
+  return ''
+}
+
 const SEO_META_BY_ROUTE: Record<PageRoute, SeoMeta> = {
   home: {
     title: '법무법인 나란 | 금융사기 피해회복 상담',
@@ -859,6 +892,7 @@ function App() {
   const [consultationDetailsInput, setConsultationDetailsInput] = useState('')
   const [consultationAfter2025Input, setConsultationAfter2025Input] = useState<ConsultationYesNo>('')
   const [consultationAfter2025Locked, setConsultationAfter2025Locked] = useState(false)
+  const [consultationPrivacyAgreed, setConsultationPrivacyAgreed] = useState(false)
   const [consultationBusy, setConsultationBusy] = useState(false)
   const [consultationNotice, setConsultationNotice] = useState('')
   const [consultationError, setConsultationError] = useState('')
@@ -873,15 +907,25 @@ function App() {
   const [heroStatsShouldAnimate, setHeroStatsShouldAnimate] = useState(false)
 
   const landingPath = window.location.pathname || '/'
+  const landingSearch = window.location.search || ''
   const landingToken = useMemo(() => getPowerlinkTokenFromPath(landingPath), [landingPath])
+  const trackedNaverKeyword = useMemo(
+    () => getNaverTrackedKeywordFromQueryString(landingSearch),
+    [landingSearch],
+  )
   const landingPowerlinkKeyword = useMemo(() => {
+    if (trackedNaverKeyword) {
+      return trackedNaverKeyword
+    }
+
     if (!landingToken) {
       return ''
     }
 
     const matchedLink = powerlinkLinks.find((item) => item.token === landingToken)
     return matchedLink?.keyword ?? ''
-  }, [landingToken, powerlinkLinks])
+  }, [landingToken, powerlinkLinks, trackedNaverKeyword])
+  const isNaverPowerlinkVisit = Boolean(landingToken || trackedNaverKeyword)
   const showHeroTypingCursor = route === 'home' && heroTypedText.length < HERO_TYPING_TEXT.length
   const companiesBannerTypingText = isCompactViewport
     ? COMPANIES_BANNER_TYPING_TEXT_MOBILE
@@ -930,7 +974,8 @@ function App() {
     () => [...displayRollingCases, ...displayRollingCases, ...displayRollingCases],
     [displayRollingCases],
   )
-  const consultationSubmitDisabled = consultationBusy || consultationAfter2025Input === 'no'
+  const consultationSubmitDisabled =
+    consultationBusy || consultationAfter2025Input === 'no' || !consultationPrivacyAgreed
 
   useEffect(() => {
     const legacyRoute = resolveLegacyHashRoute(window.location.hash)
@@ -1802,7 +1847,7 @@ function App() {
         body: JSON.stringify({
           action: 'block-ineligible-incident',
           incidentAfter2025: 'no',
-          source: landingToken ? 'naver-powerlink' : 'website-quick-form',
+          source: isNaverPowerlinkVisit ? 'naver-powerlink' : 'website-quick-form',
           pagePath: getRoutePath(route),
           landingPath,
           landingToken,
@@ -1866,6 +1911,13 @@ function App() {
       return
     }
 
+    if (!consultationPrivacyAgreed) {
+      const message = '개인정보 수집 및 이용에 동의해주세요.'
+      setConsultationError(message)
+      window.alert(message)
+      return
+    }
+
     if (!CONSULTATION_NAME_REGEX.test(name)) {
       window.alert('이름은 한글 2자부터 6자까지 입력해주세요.')
       return
@@ -1904,7 +1956,7 @@ function App() {
           phone,
           details,
           incidentAfter2025: consultationAfter2025Input,
-          source: landingToken ? 'naver-powerlink' : 'website-quick-form',
+          source: isNaverPowerlinkVisit ? 'naver-powerlink' : 'website-quick-form',
           pagePath: getRoutePath(route),
           landingPath,
           landingToken,
@@ -1929,6 +1981,7 @@ function App() {
       setConsultationDetailsInput('')
       setConsultationAfter2025Input('')
       setConsultationAfter2025Locked(false)
+      setConsultationPrivacyAgreed(false)
       sendGoogleAdsConsultationConversion()
       window.alert('신청이 완료되었습니다.')
     } catch (error) {
@@ -1974,6 +2027,24 @@ function App() {
         </div>
       </div>
     </>
+  )
+
+  const renderConsultationPrivacyAgreement = (namePrefix: string) => (
+    <label className="consultation-privacy-agreement" htmlFor={`${namePrefix}-privacy-agreement`}>
+      <input
+        id={`${namePrefix}-privacy-agreement`}
+        type="checkbox"
+        checked={consultationPrivacyAgreed}
+        onChange={(event) => {
+          setConsultationPrivacyAgreed(event.target.checked)
+          if (event.target.checked) {
+            setConsultationError('')
+          }
+        }}
+        disabled={consultationBusy}
+      />
+      <span>개인정보 수집 및 이용에 동의합니다.</span>
+    </label>
   )
 
   const handleCreatePowerlinkLink = async (event: FormEvent<HTMLFormElement>) => {
@@ -2849,6 +2920,7 @@ function App() {
                     required
                     disabled={consultationBusy}
                   />
+                  {renderConsultationPrivacyAgreement('main-consultation')}
                   <button type="submit" disabled={consultationSubmitDisabled}>
                     {consultationBusy ? '전송중...' : '바로상담하기'}
                   </button>
@@ -3097,6 +3169,7 @@ function App() {
                 required
                 disabled={consultationBusy}
               />
+              {renderConsultationPrivacyAgreement('bottom-consultation')}
               <button type="submit" disabled={consultationSubmitDisabled}>
                 {consultationBusy ? '전송중...' : '바로상담'}
               </button>
