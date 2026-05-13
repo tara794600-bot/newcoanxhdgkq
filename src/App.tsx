@@ -207,7 +207,16 @@ const DEFAULT_SEO_KEYWORDS = [
   '무료상담',
 ].join(', ')
 
-const NAVER_TRACKING_KEYWORD_PARAMS = ['n_query', 'n_keyword'] as const
+const NAVER_TRACKING_KEYWORD_PARAMS = [
+  'n_keyword',
+  'n_query',
+  'keyword',
+  'query',
+  'utm_term',
+  'utm_keyword',
+  'search_keyword',
+  'searchKeyword',
+] as const
 const TRACKED_NAVER_KEYWORD_LIMIT = 120
 
 const normalizeTrackedNaverKeyword = (value: unknown): string =>
@@ -215,6 +224,11 @@ const normalizeTrackedNaverKeyword = (value: unknown): string =>
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/\s+/g, ' ')
     .slice(0, TRACKED_NAVER_KEYWORD_LIMIT)
+
+const isUsableTrackedKeyword = (value: string): boolean => {
+  const normalizedValue = value.trim()
+  return Boolean(normalizedValue) && !/^\{[^{}]+\}$/.test(normalizedValue)
+}
 
 const getNaverTrackedKeywordFromQueryString = (queryString: string): string => {
   const normalizedQueryString = queryString.trim().replace(/^\?/, '')
@@ -229,7 +243,21 @@ const getNaverTrackedKeywordFromQueryString = (queryString: string): string => {
     for (const paramName of NAVER_TRACKING_KEYWORD_PARAMS) {
       const keyword = normalizeTrackedNaverKeyword(params.get(paramName))
 
-      if (keyword) {
+      if (isUsableTrackedKeyword(keyword)) {
+        return keyword
+      }
+    }
+
+    const lowerParamNames = NAVER_TRACKING_KEYWORD_PARAMS.map((paramName) => paramName.toLowerCase())
+
+    for (const [paramName, value] of params.entries()) {
+      if (!lowerParamNames.includes(paramName.toLowerCase())) {
+        continue
+      }
+
+      const keyword = normalizeTrackedNaverKeyword(value)
+
+      if (isUsableTrackedKeyword(keyword)) {
         return keyword
       }
     }
@@ -238,6 +266,24 @@ const getNaverTrackedKeywordFromQueryString = (queryString: string): string => {
   }
 
   return ''
+}
+
+const getHashQueryString = (hash: string): string => {
+  const questionMarkIndex = hash.indexOf('?')
+
+  if (questionMarkIndex < 0) {
+    return ''
+  }
+
+  return hash.slice(questionMarkIndex + 1)
+}
+
+const getTrackableQueryString = (search: string, hash: string): string => {
+  const queryParts = [search, getHashQueryString(hash)]
+    .map((value) => value.trim().replace(/^\?/, ''))
+    .filter(Boolean)
+
+  return queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
 }
 
 const SEO_META_BY_ROUTE: Record<PageRoute, SeoMeta> = {
@@ -964,7 +1010,7 @@ function App() {
   const [heroStatsShouldAnimate, setHeroStatsShouldAnimate] = useState(false)
 
   const landingPath = window.location.pathname || '/'
-  const landingSearch = window.location.search || ''
+  const landingSearch = getTrackableQueryString(window.location.search || '', window.location.hash || '')
   const landingToken = useMemo(() => getPowerlinkTokenFromPath(landingPath), [landingPath])
   const trackedNaverKeyword = useMemo(
     () => getNaverTrackedKeywordFromQueryString(landingSearch),
@@ -2958,19 +3004,23 @@ function App() {
                     대규모 사기 사건, 비상장주식부터 보이스피싱 단체 사기까지
                   </p>
                   {landingPowerlinkKeyword ? (
-                    <p className="hero-keyword-highlight">{landingPowerlinkKeyword}</p>
-                  ) : null}
-                  <h1
-                    aria-label="나란에서 해결할 수 없다면 그 어디서도 해결할 수 없습니다."
-                    className={landingPowerlinkKeyword ? 'hero-title-with-keyword' : undefined}
-                  >
-                    <span className="hero-typing-text">{heroTypedText || '\u00A0'}</span>
-                    {showHeroTypingCursor ? (
-                      <span className="hero-typing-cursor" aria-hidden="true">
-                        |
-                      </span>
-                    ) : null}
-                  </h1>
+                    <>
+                      <h1 className="hero-title-with-keyword" aria-label={`${landingPowerlinkKeyword} 피해회복 상담`}>
+                        <span className="hero-keyword-highlight">{landingPowerlinkKeyword}</span>
+                        <span className="hero-keyword-title-line">피해회복 상담</span>
+                      </h1>
+                      <p className="hero-keyword-subcopy">검색하신 키워드에 맞춰 전담 변호사가 상담을 준비합니다.</p>
+                    </>
+                  ) : (
+                    <h1 aria-label="나란에서 해결할 수 없다면 그 어디서도 해결할 수 없습니다.">
+                      <span className="hero-typing-text">{heroTypedText || '\u00A0'}</span>
+                      {showHeroTypingCursor ? (
+                        <span className="hero-typing-cursor" aria-hidden="true">
+                          |
+                        </span>
+                      ) : null}
+                    </h1>
+                  )}
                 </div>
 
                 <div className="hero-stats-bar" ref={heroStatsBarRef} aria-label="상담 및 해결 통계">

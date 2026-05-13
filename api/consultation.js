@@ -276,13 +276,27 @@ const decodePowerlinkKeyword = (token) => {
   }
 }
 
-const NAVER_TRACKING_KEYWORD_PARAMS = ['n_query', 'n_keyword']
+const NAVER_TRACKING_KEYWORD_PARAMS = [
+  'n_keyword',
+  'n_query',
+  'keyword',
+  'query',
+  'utm_term',
+  'utm_keyword',
+  'search_keyword',
+  'searchKeyword',
+]
 
 const normalizeTrackedNaverKeyword = (value) =>
   toTrimmedString(value)
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/\s+/g, ' ')
     .slice(0, LIMITS.landingKeyword)
+
+const isUsableTrackedKeyword = (value) => {
+  const normalizedValue = toTrimmedString(value)
+  return Boolean(normalizedValue) && !/^\{[^{}]+\}$/.test(normalizedValue)
+}
 
 const getNaverTrackedKeywordFromQueryString = (queryString) => {
   const normalizedQueryString = toTrimmedString(queryString).replace(/^\?/, '')
@@ -297,7 +311,21 @@ const getNaverTrackedKeywordFromQueryString = (queryString) => {
     for (const paramName of NAVER_TRACKING_KEYWORD_PARAMS) {
       const keyword = normalizeTrackedNaverKeyword(params.get(paramName))
 
-      if (keyword) {
+      if (isUsableTrackedKeyword(keyword)) {
+        return keyword
+      }
+    }
+
+    const lowerParamNames = NAVER_TRACKING_KEYWORD_PARAMS.map((paramName) => paramName.toLowerCase())
+
+    for (const [paramName, value] of params.entries()) {
+      if (!lowerParamNames.includes(paramName.toLowerCase())) {
+        continue
+      }
+
+      const keyword = normalizeTrackedNaverKeyword(value)
+
+      if (isUsableTrackedKeyword(keyword)) {
         return keyword
       }
     }
