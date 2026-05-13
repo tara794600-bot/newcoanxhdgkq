@@ -376,6 +376,11 @@ const normalizePathname = (pathname: string): string => {
   return withoutTrailingSlash || '/'
 }
 
+const isAdminRoutePathname = (pathname: string): boolean => {
+  const cleaned = normalizePathname(pathname).toLowerCase()
+  return cleaned === ROUTE_PATHS.admin || cleaned.startsWith(`${ROUTE_PATHS.admin}/`)
+}
+
 const resolveRoute = (pathname: string): PageRoute => {
   const cleaned = normalizePathname(pathname).toLowerCase()
 
@@ -387,7 +392,7 @@ const resolveRoute = (pathname: string): PageRoute => {
     return 'companies'
   }
 
-  if (cleaned === ROUTE_PATHS.admin || cleaned.startsWith(`${ROUTE_PATHS.admin}/`)) {
+  if (isAdminRoutePathname(cleaned)) {
     return 'admin'
   }
 
@@ -510,7 +515,19 @@ const detectVisitSource = (params: {
 
 let googleAdsTagConfigured = false
 
-const initializeGoogleAdsTag = () => {
+const isGoogleAdsTrackingAllowed = (): boolean => !isAdminRoutePathname(window.location.pathname)
+
+const removeGoogleAdsTag = () => {
+  document.getElementById(GOOGLE_ADS_SCRIPT_ID)?.remove()
+  googleAdsTagConfigured = false
+}
+
+const initializeGoogleAdsTag = (): GoogleTag | null => {
+  if (!isGoogleAdsTrackingAllowed()) {
+    removeGoogleAdsTag()
+    return null
+  }
+
   window.dataLayer = window.dataLayer || []
   window.gtag =
     window.gtag ||
@@ -531,13 +548,14 @@ const initializeGoogleAdsTag = () => {
     window.gtag('config', GOOGLE_ADS_ID)
     googleAdsTagConfigured = true
   }
+
+  return window.gtag ?? null
 }
 
 const sendGoogleAdsConsultationConversion = () => {
-  initializeGoogleAdsTag()
-  const gtag = window.gtag
+  const gtag = initializeGoogleAdsTag()
 
-  if (!gtag) {
+  if (!gtag || !isGoogleAdsTrackingAllowed()) {
     return
   }
 
@@ -924,6 +942,7 @@ function App() {
   const [companyUploadBusy, setCompanyUploadBusy] = useState(false)
   const [companyEditingCaseId, setCompanyEditingCaseId] = useState('')
   const [companySearchInput, setCompanySearchInput] = useState('')
+  const [adminCompanySearchInput, setAdminCompanySearchInput] = useState('')
 
   const [consultationNameInput, setConsultationNameInput] = useState('')
   const [consultationPhoneInput, setConsultationPhoneInput] = useState('')
@@ -982,6 +1001,18 @@ function App() {
       ),
     )
   }, [companyCases, normalizedCompanySearchTerm])
+  const normalizedAdminCompanySearchTerm = adminCompanySearchInput.trim().toLocaleLowerCase('ko-KR')
+  const filteredAdminCompanyCases = useMemo(() => {
+    if (!normalizedAdminCompanySearchTerm) {
+      return companyCases
+    }
+
+    return companyCases.filter((item) =>
+      [item.name, item.service, item.description].some((value) =>
+        value.toLocaleLowerCase('ko-KR').includes(normalizedAdminCompanySearchTerm),
+      ),
+    )
+  }, [companyCases, normalizedAdminCompanySearchTerm])
   const selectedCompanyCase = useMemo(
     () => companyCases.find((item) => item.id === selectedCompanyCaseId) ?? null,
     [companyCases, selectedCompanyCaseId],
@@ -1007,6 +1038,12 @@ function App() {
     upsertCanonicalLink(canonicalUrl)
     upsertRouteStructuredData(getRouteStructuredData(route, seoMeta, canonicalUrl))
   }, [route, landingPowerlinkKeyword])
+
+  useEffect(() => {
+    if (route === 'admin') {
+      removeGoogleAdsTag()
+    }
+  }, [route])
 
   const displayRollingCases = useMemo<RollingDisplayItem[]>(
     () => [...defaultRollingCards, ...rollingCases.map((item) => ({ ...item, kind: 'case' as const }))],
@@ -2798,27 +2835,61 @@ function App() {
                 </form>
 
                 <div className="admin-list-wrap">
-                  <h4>등록된 사기업체 정보</h4>
+                  <div className="admin-list-title-row">
+                    <h4>등록된 사기업체 정보</h4>
+                    {companyCases.length > 0 ? (
+                      <span>
+                        {filteredAdminCompanyCases.length}/{companyCases.length}
+                      </span>
+                    ) : null}
+                  </div>
                   {companyCases.length > 0 ? (
-                    <ul className="admin-item-list">
-                      {companyCases.map((item) => (
-                        <li className="admin-item" key={item.id}>
-                          <div>
-                            <p>{item.service}</p>
-                            <strong>{item.name}</strong>
-                            <span>{item.description}</span>
-                          </div>
-                          <div className="admin-item-actions">
-                            <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
-                              수정
-                            </button>
-                            <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
-                              삭제
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <label className="admin-list-search">
+                        <span className="visually-hidden">등록된 사기업체 검색</span>
+                        <input
+                          type="search"
+                          value={adminCompanySearchInput}
+                          onChange={(event) => setAdminCompanySearchInput(event.target.value)}
+                          placeholder="업체명, 유형, 설명 검색"
+                          autoComplete="off"
+                        />
+                        {adminCompanySearchInput ? (
+                          <button
+                            type="button"
+                            className="admin-list-search-clear"
+                            onClick={() => setAdminCompanySearchInput('')}
+                            aria-label="검색어 지우기"
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </label>
+
+                      {filteredAdminCompanyCases.length > 0 ? (
+                        <ul className="admin-item-list">
+                          {filteredAdminCompanyCases.map((item) => (
+                            <li className="admin-item" key={item.id}>
+                              <div>
+                                <p>{item.service}</p>
+                                <strong>{item.name}</strong>
+                                <span className="admin-item-description">{item.description}</span>
+                              </div>
+                              <div className="admin-item-actions">
+                                <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
+                                  수정
+                                </button>
+                                <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
+                                  삭제
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="admin-empty">검색 결과가 없습니다.</p>
+                      )}
+                    </>
                   ) : (
                     <p className="admin-empty">DB에 저장된 사기업체 정보가 아직 없습니다.</p>
                   )}
