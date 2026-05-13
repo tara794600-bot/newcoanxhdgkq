@@ -55,58 +55,19 @@ const normalizeVisitSource = (value) => {
   return ''
 }
 
-const isGoogleChromeBrowser = (userAgent) => {
-  const normalizedUserAgent = toTrimmedString(userAgent).toLowerCase()
-  const isChromeLike =
-    normalizedUserAgent.includes('chrome/') ||
-    normalizedUserAgent.includes('crios/') ||
-    normalizedUserAgent.includes('gsa/')
-
-  if (!isChromeLike) {
-    return false
-  }
-
-  return ![
-    'naver',
-    'whale',
-    'edg/',
-    'edge/',
-    'opr/',
-    'opera',
-    'samsungbrowser',
-    'kakaotalk',
-    'fbav',
-    'instagram',
-    ' wv',
-    'firefox',
-    'fxios',
-  ].some((marker) => normalizedUserAgent.includes(marker))
-}
-
 const detectVisitSource = ({ visitSource, source, landingToken, queryString, referrer, userAgent }) => {
   const explicitVisitSource = normalizeVisitSource(visitSource)
-
-  if (explicitVisitSource) {
-    return explicitVisitSource
-  }
-
   const normalizedSource = toTrimmedString(source).toLowerCase()
   const normalizedLandingToken = toTrimmedString(landingToken)
   const normalizedQueryString = toTrimmedString(queryString).toLowerCase()
   const normalizedReferrer = toTrimmedString(referrer).toLowerCase()
   const normalizedUserAgent = toTrimmedString(userAgent).toLowerCase()
 
-  if (normalizedUserAgent.includes('naver') || normalizedUserAgent.includes('whale')) {
-    return 'naver'
-  }
-
-  if (isGoogleChromeBrowser(userAgent)) {
-    return 'google'
-  }
-
   const hasNaverSignal =
     Boolean(normalizedLandingToken) ||
     normalizedSource.includes('naver') ||
+    normalizedUserAgent.includes('naver') ||
+    normalizedUserAgent.includes('whale') ||
     normalizedReferrer.includes('naver.') ||
     normalizedQueryString.includes('utm_source=naver') ||
     normalizedQueryString.includes('n_keyword') ||
@@ -126,7 +87,15 @@ const detectVisitSource = ({ visitSource, source, landingToken, queryString, ref
     normalizedQueryString.includes('gbraid') ||
     normalizedQueryString.includes('wbraid')
 
-  return hasGoogleSignal ? 'google' : ''
+  if (hasGoogleSignal) {
+    return 'google'
+  }
+
+  if (explicitVisitSource) {
+    return explicitVisitSource
+  }
+
+  return ''
 }
 
 const formatVisitSourceForDisplay = (visitSource) => {

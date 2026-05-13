@@ -489,34 +489,6 @@ const resolveLegacyHashRoute = (hash: string): PageRoute | null => {
 
 const getRoutePath = (route: PageRoute): string => ROUTE_PATHS[route]
 
-const isGoogleChromeBrowser = (userAgent: string): boolean => {
-  const normalizedUserAgent = userAgent.toLowerCase()
-  const isChromeLike =
-    normalizedUserAgent.includes('chrome/') ||
-    normalizedUserAgent.includes('crios/') ||
-    normalizedUserAgent.includes('gsa/')
-
-  if (!isChromeLike) {
-    return false
-  }
-
-  return ![
-    'naver',
-    'whale',
-    'edg/',
-    'edge/',
-    'opr/',
-    'opera',
-    'samsungbrowser',
-    'kakaotalk',
-    'fbav',
-    'instagram',
-    ' wv',
-    'firefox',
-    'fxios',
-  ].some((marker) => normalizedUserAgent.includes(marker))
-}
-
 const detectVisitSource = (params: {
   landingToken: string
   queryString: string
@@ -528,16 +500,10 @@ const detectVisitSource = (params: {
   const referrer = params.referrer.toLowerCase()
   const userAgent = params.userAgent.toLowerCase()
 
-  if (userAgent.includes('naver') || userAgent.includes('whale')) {
-    return 'naver'
-  }
-
-  if (isGoogleChromeBrowser(params.userAgent)) {
-    return 'google'
-  }
-
   const hasNaverSignal =
     Boolean(landingToken) ||
+    userAgent.includes('naver') ||
+    userAgent.includes('whale') ||
     referrer.includes('naver.') ||
     queryString.includes('utm_source=naver') ||
     queryString.includes('n_keyword') ||
@@ -556,7 +522,11 @@ const detectVisitSource = (params: {
     queryString.includes('gbraid') ||
     queryString.includes('wbraid')
 
-  return hasGoogleSignal ? 'google' : ''
+  if (hasGoogleSignal) {
+    return 'google'
+  }
+
+  return ''
 }
 
 let googleAdsTagConfigured = false
