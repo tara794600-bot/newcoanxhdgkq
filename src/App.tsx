@@ -41,7 +41,7 @@ import bannerImg from './assets/banner.png'
 import { auth, db, isFirebaseConfigured, storage } from './firebase'
 import './App.css'
 
-type PageRoute = 'home' | 'lawyers' | 'companies'
+type PageRoute = 'home' | 'lawyers' | 'companies' | 'admin'
 type AuthViewMode = 'login' | 'signup'
 type ConsultationYesNo = '' | 'yes' | 'no'
 type VisitSource = '' | 'naver' | 'google'
@@ -188,6 +188,7 @@ const ROUTE_PATHS: Record<PageRoute, string> = {
   home: '/',
   lawyers: '/lawyers',
   companies: '/companies',
+  admin: '/admin',
 }
 
 const SITE_BASE_URL = (
@@ -258,6 +259,12 @@ const SEO_META_BY_ROUTE: Record<PageRoute, SeoMeta> = {
     description: '투자사기, 부업사기, 로맨스스캠 등 실제 사기업체 사례를 게시판 형식으로 확인하고 피해회복 상담을 신청하세요.',
     keywords: `사기업체 게시판, 사기업체 사례 게시판, 사기 업체 게시판, 사기 피해 게시판, 사기업체 목록, 사기 피해 사례, 피해회복 상담, ${DEFAULT_SEO_KEYWORDS}`,
     path: '/companies',
+  },
+  admin: {
+    title: '관리자 페이지 | 법무법인 나란',
+    description: '법무법인 나란 관리자 전용 페이지입니다.',
+    keywords: '법무법인 나란 관리자',
+    path: '/admin',
   },
 }
 
@@ -378,6 +385,10 @@ const resolveRoute = (pathname: string): PageRoute => {
 
   if (cleaned === ROUTE_PATHS.companies || cleaned.startsWith(`${ROUTE_PATHS.companies}/`)) {
     return 'companies'
+  }
+
+  if (cleaned === ROUTE_PATHS.admin || cleaned.startsWith(`${ROUTE_PATHS.admin}/`)) {
+    return 'admin'
   }
 
   return 'home'
@@ -983,7 +994,11 @@ function App() {
     document.title = seoMeta.title
     upsertMetaTag('name', 'description', seoMeta.description)
     upsertMetaTag('name', 'keywords', seoMeta.keywords)
-    upsertMetaTag('name', 'robots', 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1')
+    upsertMetaTag(
+      'name',
+      'robots',
+      route === 'admin' ? 'noindex,nofollow' : 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1',
+    )
     upsertMetaTag('property', 'og:title', seoMeta.title)
     upsertMetaTag('property', 'og:description', seoMeta.description)
     upsertMetaTag('property', 'og:url', canonicalUrl)
@@ -1577,14 +1592,6 @@ function App() {
   const clearAdminFeedback = () => {
     setAdminNotice('')
     setAdminError('')
-  }
-
-  const openAuthModal = (mode: AuthViewMode) => {
-    setAuthMode(mode)
-    setAuthError('')
-    setAuthNotice('')
-    setInviteCode('')
-    setShowAuthModal(true)
   }
 
   const closeAuthModal = () => {
@@ -2446,36 +2453,185 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
-      <header className="top-nav">
-        <a className="brand" href={getRoutePath('home')} onClick={(event) => handleRouteNavigation(event, 'home')}>
-          <img src={heroImg} className="brand-logo" alt="법무법인 나란 로고" />
-        </a>
-
-        <nav className="menu" aria-label="주요 메뉴">
-          <a
-            className={route === 'lawyers' ? 'active' : ''}
-            href={getRoutePath('lawyers')}
-            onClick={(event) => handleRouteNavigation(event, 'lawyers')}
-          >
-            변호사소개
-          </a>
-          <a
-            className={route === 'companies' ? 'active' : ''}
-            href={getRoutePath('companies')}
-            onClick={(event) => handleRouteNavigation(event, 'companies')}
-          >
-            사기업체
-          </a>
-          <a href={getRoutePath('home')} onClick={handleConsultingNavigation}>
-            온라인상담
+    <div className={`app-shell ${route === 'admin' ? 'app-shell-admin' : ''}`}>
+      {route !== 'admin' ? (
+        <header className="top-nav">
+          <a className="brand" href={getRoutePath('home')} onClick={(event) => handleRouteNavigation(event, 'home')}>
+            <img src={heroImg} className="brand-logo" alt="법무법인 나란 로고" />
           </a>
 
-        </nav>
-      </header>
+          <nav className="menu" aria-label="주요 메뉴">
+            <a
+              className={route === 'lawyers' ? 'active' : ''}
+              href={getRoutePath('lawyers')}
+              onClick={(event) => handleRouteNavigation(event, 'lawyers')}
+            >
+              변호사소개
+            </a>
+            <a
+              className={route === 'companies' ? 'active' : ''}
+              href={getRoutePath('companies')}
+              onClick={(event) => handleRouteNavigation(event, 'companies')}
+            >
+              사기업체
+            </a>
+            <a href={getRoutePath('home')} onClick={handleConsultingNavigation}>
+              온라인상담
+            </a>
 
-      <main>
-        {isStaff && adminOpen && (
+          </nav>
+        </header>
+      ) : null}
+
+      <main className={route === 'admin' ? 'admin-page-main' : undefined}>
+        {route === 'admin' ? (
+          <section className="section-wrap admin-page-head" aria-label="관리자 페이지">
+            <a
+              className="admin-page-brand"
+              href={getRoutePath('home')}
+              onClick={(event) => handleRouteNavigation(event, 'home')}
+            >
+              <img src={logoImg} alt="법무법인 나란 로고" />
+            </a>
+            <div className="admin-page-title">
+              <p>관리자 전용</p>
+              <h1>관리자 페이지</h1>
+            </div>
+            <div className="admin-page-actions">
+              <a
+                className="admin-page-link"
+                href={getRoutePath('home')}
+                onClick={(event) => handleRouteNavigation(event, 'home')}
+              >
+                홈으로
+              </a>
+              {isStaff ? (
+                <button type="button" className="admin-page-link admin-page-link-primary" onClick={handleSignOut}>
+                  로그아웃
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {route === 'admin' && !isStaff ? (
+          <section className="section-wrap admin-auth-section" aria-label="관리자 로그인">
+            <section className="auth-modal admin-auth-card" aria-label="관리자 인증">
+              {isStaffCheckPending ? (
+                <>
+                  <h3>권한 확인 중</h3>
+                  <p className="auth-modal-copy">관리자 계정 상태를 확인하고 있습니다.</p>
+                </>
+              ) : (
+                <>
+                  <h3>관리자 전용 계정</h3>
+                  <p className="auth-modal-copy">관리자 승인된 계정으로 로그인하면 관리 기능을 사용할 수 있습니다.</p>
+
+                  <div className="auth-mode-tabs" role="tablist" aria-label="인증 방식">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={authMode === 'login'}
+                      className={`auth-mode-tab ${authMode === 'login' ? 'active' : ''}`}
+                      onClick={() => {
+                        setAuthMode('login')
+                        setAuthError('')
+                        setAuthNotice('')
+                        setInviteCode('')
+                      }}
+                    >
+                      로그인
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={authMode === 'signup'}
+                      className={`auth-mode-tab ${authMode === 'signup' ? 'active' : ''}`}
+                      onClick={() => {
+                        setAuthMode('signup')
+                        setAuthError('')
+                        setAuthNotice('')
+                        setInviteCode('')
+                      }}
+                    >
+                      회원가입
+                    </button>
+                  </div>
+
+                  {isFirebaseConfigured ? (
+                    <form className="auth-form" onSubmit={handleAuthSubmit}>
+                      <label>
+                        이메일
+                        <input
+                          type="email"
+                          value={authEmail}
+                          onChange={(event) => setAuthEmail(event.target.value)}
+                          placeholder="admin@example.com"
+                          autoComplete="email"
+                        />
+                      </label>
+                      <label>
+                        비밀번호
+                        <input
+                          type="password"
+                          value={authPassword}
+                          onChange={(event) => setAuthPassword(event.target.value)}
+                          placeholder="6자 이상"
+                          autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                        />
+                      </label>
+
+                      {authMode === 'signup' ? (
+                        <label>
+                          관리자 초대코드
+                          <input
+                            type="password"
+                            value={inviteCode}
+                            onChange={(event) => setInviteCode(event.target.value)}
+                            placeholder="운영자가 전달한 코드"
+                          />
+                        </label>
+                      ) : null}
+
+                      <button type="submit" disabled={authBusy || passwordResetBusy}>
+                        {authBusy ? '처리중...' : authMode === 'login' ? '로그인' : '회원가입'}
+                      </button>
+
+                      {authMode === 'login' ? (
+                        <div className="auth-help-row">
+                          <p>이메일 입력 후 비밀번호 재설정 메일을 보내세요.</p>
+                          <button
+                            type="button"
+                            className="auth-link-btn"
+                            onClick={handlePasswordReset}
+                            disabled={authBusy || passwordResetBusy}
+                          >
+                            {passwordResetBusy ? '메일 전송중...' : '비밀번호 찾기'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </form>
+                  ) : (
+                    <p className="auth-form-error">
+                      Firebase 설정이 없습니다. <code>.env</code>에 <code>VITE_FIREBASE_*</code> 값을 입력해주세요.
+                    </p>
+                  )}
+
+                  {authMode === 'signup' ? (
+                    <p className="auth-form-help">회원가입 시 초대코드가 맞으면 바로 관리자 승인 후 관리자 창을 사용할 수 있습니다.</p>
+                  ) : (
+                    <p className="auth-form-help">관리자 승인된 계정으로 로그인하면 관리자 페이지에 접속합니다.</p>
+                  )}
+
+                  {authNotice ? <p className="auth-form-success">{authNotice}</p> : null}
+                  {authError ? <p className="auth-form-error">{authError}</p> : null}
+                </>
+              )}
+            </section>
+          </section>
+        ) : null}
+
+        {route === 'admin' && isStaff && adminOpen && (
           <section className="section-wrap admin-panel reveal-on-scroll" aria-label="관리자 창">
             <div className="admin-panel-head">
               <h2>관리자 창</h2>
@@ -3140,28 +3296,32 @@ function App() {
           </section>
         )}
 
-        <section className="faq-section reveal-on-scroll" aria-label="자주 묻는 질문">
-          <div className="section-wrap faq-inner">
-            <div className="faq-head">
-              <p>Q&A</p>
-              <h2>사기 피해회복 자주 묻는 질문</h2>
-            </div>
+        {route !== 'admin' ? (
+          <section className="faq-section reveal-on-scroll" aria-label="자주 묻는 질문">
+            <div className="section-wrap faq-inner">
+              <div className="faq-head">
+                <p>Q&A</p>
+                <h2>사기 피해회복 자주 묻는 질문</h2>
+              </div>
 
-            <div className="faq-list">
-              {faqItems.map((item) => (
-                <article className="faq-card" key={item.question}>
-                  <h3>{item.question}</h3>
-                  <p>{item.answer}</p>
-                </article>
-              ))}
+              <div className="faq-list">
+                {faqItems.map((item) => (
+                  <article className="faq-card" key={item.question}>
+                    <h3>{item.question}</h3>
+                    <p>{item.answer}</p>
+                  </article>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
       </main>
 
-      <section className="quick-apply-bar" aria-label="하단 고정 간편 신청">
-        <div className="section-wrap quick-apply-inner">
-          <p className="quick-apply-title">간편 신청</p>
+      {route !== 'admin' ? (
+        <>
+          <section className="quick-apply-bar" aria-label="하단 고정 간편 신청">
+            <div className="section-wrap quick-apply-inner">
+              <p className="quick-apply-title">간편 신청</p>
 
           <div className="quick-apply-scroll">
             <form className="quick-apply-form" onSubmit={handleConsultationSubmit}>
@@ -3260,9 +3420,9 @@ function App() {
                 <button
                   type="button"
                   className="footer-admin-btn footer-admin-btn-primary"
-                  onClick={() => setAdminOpen((previous) => !previous)}
+                  onClick={() => navigateToRoute('admin')}
                 >
-                  {adminOpen ? '관리자 닫기' : '관리자 창'}
+                  관리자 페이지
                 </button>
                 <button type="button" className="footer-admin-btn" onClick={handleSignOut}>
                   로그아웃
@@ -3272,7 +3432,7 @@ function App() {
               <button
                 type="button"
                 className="footer-admin-btn footer-admin-btn-primary"
-                onClick={() => openAuthModal('login')}
+                onClick={() => navigateToRoute('admin')}
                 disabled={isStaffCheckPending}
               >
                 {isStaffCheckPending ? '권한확인중' : '관리자 로그인'}
@@ -3395,6 +3555,8 @@ function App() {
           </section>
         </div>
       )}
+        </>
+      ) : null}
     </div>
   )
 }
