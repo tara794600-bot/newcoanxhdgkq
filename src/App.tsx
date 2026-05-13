@@ -3188,20 +3188,24 @@ function App() {
                     </h2>
                   </div>
 
-                  <div className="companies-grid keyword-company-grid">
+                  <div className="keyword-company-list">
                     {keywordSectionCompanyCases.length > 0
                       ? keywordSectionCompanyCases.map((item) => (
-                          <a
-                            className="company-card company-card-filled company-card-link"
-                            href={getCompanyCasePath(item.id)}
-                            onClick={(event) => handleCompanyCaseNavigation(event, item.id)}
-                            key={item.id}
-                          >
-                            <div className="company-card-thumb-wrap">
-                              <img src={item.image} alt={`${item.name} 이미지`} className="company-card-image" />
+                          <article className="company-detail keyword-company-detail" key={item.id}>
+                            <div className="company-detail-layout">
+                              <div className="company-detail-image-wrap">
+                                <img src={item.image} alt={`${item.name} 이미지`} />
+                              </div>
+                              <div className="company-detail-copy">
+                                <p className="company-detail-service">{item.service}</p>
+                                <h3>{item.name}</h3>
+                                <p className="company-detail-description">{item.description}</p>
+                                <button type="button" className="company-detail-cta" onClick={moveToQuickFormSection}>
+                                  신청 바로가기
+                                </button>
+                              </div>
                             </div>
-                            <p className="company-card-name">{item.name}</p>
-                          </a>
+                          </article>
                         ))
                       : companyPlaceholders.slice(0, 4).map((_, index) => (
                           <article className="company-card" key={`keyword-company-placeholder-${index}`}>

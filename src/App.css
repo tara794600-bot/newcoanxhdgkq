@@ -1806,7 +1806,12 @@ main {
   color: #3d79a6;
 }
 
-.keyword-company-grid {
+.keyword-company-list {
+  display: grid;
+  gap: 24px;
+}
+
+.keyword-company-detail .company-detail-layout {
   margin-top: 0;
 }
 
@@ -3154,6 +3159,10 @@ main {
   .keyword-company-head h2 {
     font-size: clamp(23px, 6.7vw, 34px);
     text-align: left;
+  }
+
+  .keyword-company-list {
+    gap: 14px;
   }
 
   .companies-grid-wrap {
