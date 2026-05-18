@@ -1124,13 +1124,20 @@ function App() {
       .filter((item) => companyCaseMatchesKeyword(item, landingPowerlinkKeyword))
       .slice(0, KEYWORD_COMPANY_CASE_LIMIT)
   }, [companyCases, landingPowerlinkKeyword])
+  const latestKeywordSectionCompanyCases = useMemo(
+    () => companyCases.slice(0, KEYWORD_COMPANY_CASE_LIMIT),
+    [companyCases],
+  )
   const keywordSectionCompanyCases = useMemo(() => {
     if (!landingPowerlinkKeyword) {
       return []
     }
 
-    return (keywordCompanyCases.length > 0 ? keywordCompanyCases : companyCases).slice(0, KEYWORD_COMPANY_CASE_LIMIT)
-  }, [companyCases, keywordCompanyCases, landingPowerlinkKeyword])
+    return keywordCompanyCases.length > 0 ? keywordCompanyCases : latestKeywordSectionCompanyCases
+  }, [keywordCompanyCases, landingPowerlinkKeyword, latestKeywordSectionCompanyCases])
+  const isShowingMatchedKeywordCompanyCases = keywordCompanyCases.length > 0
+  const shouldShowKeywordCompanySection =
+    Boolean(landingPowerlinkKeyword) && (!companyCasesLoaded || latestKeywordSectionCompanyCases.length > 0)
   const selectedCompanyCase = useMemo(
     () => companyCases.find((item) => item.id === selectedCompanyCaseId) ?? null,
     [companyCases, selectedCompanyCaseId],
@@ -3143,18 +3150,22 @@ function App() {
               </div>
             </section>
 
-            {landingPowerlinkKeyword && (!companyCasesLoaded || keywordSectionCompanyCases.length > 0) ? (
+            {shouldShowKeywordCompanySection ? (
               <section
                 className="keyword-company-section reveal-on-scroll"
-                aria-label={`${landingPowerlinkKeyword} 관련 사기업체 게시글`}
+                aria-label={
+                  isShowingMatchedKeywordCompanyCases
+                    ? `${landingPowerlinkKeyword} 관련 사기업체 게시글`
+                    : '최신 사기업체 게시글'
+                }
               >
                 <div className="section-wrap keyword-company-inner">
                   <div className="keyword-company-head">
-                    <p>관련 사기업체 게시글</p>
+                    <p>{isShowingMatchedKeywordCompanyCases ? '관련 사기업체 게시글' : '최신 사기업체 게시글'}</p>
                     <h2>
-                      <span>{landingPowerlinkKeyword}</span>
+                      <span>{isShowingMatchedKeywordCompanyCases ? landingPowerlinkKeyword : '최신'}</span>
                       <br />
-                      관련 게시글
+                      {isShowingMatchedKeywordCompanyCases ? '관련 게시글' : '게시글'}
                     </h2>
                   </div>
 
