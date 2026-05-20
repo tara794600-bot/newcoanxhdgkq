@@ -2000,6 +2000,65 @@ main {
   gap: 16px;
 }
 
+.company-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 34px;
+}
+
+.company-page-button {
+  min-width: 38px;
+  height: 38px;
+  border: 1px solid #cdd8e5;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.company-page-button:hover:not(:disabled),
+.company-page-button:focus-visible {
+  border-color: #3d79a6;
+  color: #1f4f76;
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.company-page-button.is-active {
+  border-color: #3d79a6;
+  background: #3d79a6;
+  color: #ffffff;
+}
+
+.company-page-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.company-page-arrow {
+  font-size: 17px;
+}
+
+.company-page-ellipsis {
+  min-width: 24px;
+  color: #6b7686;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .company-card {
   border-radius: 14px;
   border: 1px solid #e6e6e6;
@@ -3210,6 +3269,26 @@ main {
     gap: 8px;
   }
 
+  .company-pagination {
+    gap: 6px;
+    margin-top: 24px;
+  }
+
+  .company-page-button {
+    min-width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .company-page-arrow {
+    font-size: 15px;
+  }
+
+  .company-page-ellipsis {
+    min-width: 18px;
+    font-size: 13px;
+  }
+
   .company-card {
     min-height: 0;
     border-radius: 10px;
@@ -3602,6 +3681,25 @@ main {
   .companies-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .company-pagination {
+    gap: 4px;
+  }
+
+  .company-page-button {
+    min-width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .company-page-arrow {
+    font-size: 14px;
+  }
+
+  .company-page-ellipsis {
+    min-width: 14px;
+    font-size: 12px;
   }
 
   .company-card {
