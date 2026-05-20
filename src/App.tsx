@@ -823,6 +823,7 @@ const lawyerProfiles: LawyerProfile[] = [
 const toTrimmedString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
 const KEYWORD_COMPANY_CASE_LIMIT = 8
 const COMPANY_CASES_PER_PAGE = 40
+const ADMIN_ITEMS_PER_PAGE = 30
 type PaginationItem = number | 'ellipsis-start' | 'ellipsis-end'
 
 const getPaginationItems = (totalPages: number, currentPage: number): PaginationItem[] => {
@@ -1173,6 +1174,9 @@ function App() {
   const [companySearchInput, setCompanySearchInput] = useState('')
   const [companyCurrentPage, setCompanyCurrentPage] = useState(1)
   const [adminCompanySearchInput, setAdminCompanySearchInput] = useState('')
+  const [adminRollingCurrentPage, setAdminRollingCurrentPage] = useState(1)
+  const [adminCompanyCurrentPage, setAdminCompanyCurrentPage] = useState(1)
+  const [adminPowerlinkCurrentPage, setAdminPowerlinkCurrentPage] = useState(1)
 
   const [consultationNameInput, setConsultationNameInput] = useState('')
   const [consultationPhoneInput, setConsultationPhoneInput] = useState('')
@@ -1254,6 +1258,39 @@ function App() {
       ),
     )
   }, [companyCases, normalizedAdminCompanySearchTerm])
+  const adminRollingPageCount = Math.max(1, Math.ceil(rollingCases.length / ADMIN_ITEMS_PER_PAGE))
+  const activeAdminRollingPage = Math.min(adminRollingCurrentPage, adminRollingPageCount)
+  const paginatedAdminRollingCases = useMemo(() => {
+    const startIndex = (activeAdminRollingPage - 1) * ADMIN_ITEMS_PER_PAGE
+    return rollingCases.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE)
+  }, [activeAdminRollingPage, rollingCases])
+  const adminRollingPaginationItems = useMemo(
+    () => getPaginationItems(adminRollingPageCount, activeAdminRollingPage),
+    [activeAdminRollingPage, adminRollingPageCount],
+  )
+  const shouldShowAdminRollingPagination = rollingCases.length > ADMIN_ITEMS_PER_PAGE
+  const adminCompanyPageCount = Math.max(1, Math.ceil(filteredAdminCompanyCases.length / ADMIN_ITEMS_PER_PAGE))
+  const activeAdminCompanyPage = Math.min(adminCompanyCurrentPage, adminCompanyPageCount)
+  const paginatedAdminCompanyCases = useMemo(() => {
+    const startIndex = (activeAdminCompanyPage - 1) * ADMIN_ITEMS_PER_PAGE
+    return filteredAdminCompanyCases.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE)
+  }, [activeAdminCompanyPage, filteredAdminCompanyCases])
+  const adminCompanyPaginationItems = useMemo(
+    () => getPaginationItems(adminCompanyPageCount, activeAdminCompanyPage),
+    [activeAdminCompanyPage, adminCompanyPageCount],
+  )
+  const shouldShowAdminCompanyPagination = filteredAdminCompanyCases.length > ADMIN_ITEMS_PER_PAGE
+  const adminPowerlinkPageCount = Math.max(1, Math.ceil(powerlinkLinks.length / ADMIN_ITEMS_PER_PAGE))
+  const activeAdminPowerlinkPage = Math.min(adminPowerlinkCurrentPage, adminPowerlinkPageCount)
+  const paginatedAdminPowerlinkLinks = useMemo(() => {
+    const startIndex = (activeAdminPowerlinkPage - 1) * ADMIN_ITEMS_PER_PAGE
+    return powerlinkLinks.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE)
+  }, [activeAdminPowerlinkPage, powerlinkLinks])
+  const adminPowerlinkPaginationItems = useMemo(
+    () => getPaginationItems(adminPowerlinkPageCount, activeAdminPowerlinkPage),
+    [activeAdminPowerlinkPage, adminPowerlinkPageCount],
+  )
+  const shouldShowAdminPowerlinkPagination = powerlinkLinks.length > ADMIN_ITEMS_PER_PAGE
   const keywordCompanyCases = useMemo(() => {
     if (!landingPowerlinkKeyword) {
       return []
@@ -1282,6 +1319,28 @@ function App() {
       setCompanyCurrentPage(companyPageCount)
     }
   }, [companyCurrentPage, companyPageCount])
+
+  useEffect(() => {
+    setAdminCompanyCurrentPage(1)
+  }, [normalizedAdminCompanySearchTerm])
+
+  useEffect(() => {
+    if (adminRollingCurrentPage > adminRollingPageCount) {
+      setAdminRollingCurrentPage(adminRollingPageCount)
+    }
+  }, [adminRollingCurrentPage, adminRollingPageCount])
+
+  useEffect(() => {
+    if (adminCompanyCurrentPage > adminCompanyPageCount) {
+      setAdminCompanyCurrentPage(adminCompanyPageCount)
+    }
+  }, [adminCompanyCurrentPage, adminCompanyPageCount])
+
+  useEffect(() => {
+    if (adminPowerlinkCurrentPage > adminPowerlinkPageCount) {
+      setAdminPowerlinkCurrentPage(adminPowerlinkPageCount)
+    }
+  }, [adminPowerlinkCurrentPage, adminPowerlinkPageCount])
 
   useEffect(() => {
     const seoMeta = getSeoMeta(route, landingPowerlinkKeyword, selectedCompanyCase)
@@ -2160,6 +2219,79 @@ function App() {
     })
   }
 
+  const handleAdminRollingPageChange = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(nextPage, 1), adminRollingPageCount)
+
+    if (boundedPage !== activeAdminRollingPage) {
+      setAdminRollingCurrentPage(boundedPage)
+    }
+  }
+
+  const handleAdminCompanyPageChange = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(nextPage, 1), adminCompanyPageCount)
+
+    if (boundedPage !== activeAdminCompanyPage) {
+      setAdminCompanyCurrentPage(boundedPage)
+    }
+  }
+
+  const handleAdminPowerlinkPageChange = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(nextPage, 1), adminPowerlinkPageCount)
+
+    if (boundedPage !== activeAdminPowerlinkPage) {
+      setAdminPowerlinkCurrentPage(boundedPage)
+    }
+  }
+
+  const renderAdminPagination = (
+    currentPage: number,
+    pageCount: number,
+    paginationItems: PaginationItem[],
+    handlePageChange: (nextPage: number) => void,
+    label: string,
+    keyPrefix: string,
+  ) => (
+    <nav className="admin-pagination" aria-label={label}>
+      <button
+        type="button"
+        className="admin-page-button admin-page-arrow"
+        onClick={() => handlePageChange(currentPage - 1)}
+        disabled={currentPage <= 1}
+        aria-label="이전 페이지"
+      >
+        &lt;
+      </button>
+
+      {paginationItems.map((item) =>
+        typeof item === 'number' ? (
+          <button
+            type="button"
+            className={`admin-page-button${item === currentPage ? ' is-active' : ''}`}
+            onClick={() => handlePageChange(item)}
+            aria-current={item === currentPage ? 'page' : undefined}
+            key={`${keyPrefix}-page-${item}`}
+          >
+            {item}
+          </button>
+        ) : (
+          <span className="admin-page-ellipsis" aria-hidden="true" key={`${keyPrefix}-page-${item}`}>
+            ...
+          </span>
+        ),
+      )}
+
+      <button
+        type="button"
+        className="admin-page-button admin-page-arrow"
+        onClick={() => handlePageChange(currentPage + 1)}
+        disabled={currentPage >= pageCount}
+        aria-label="다음 페이지"
+      >
+        &gt;
+      </button>
+    </nav>
+  )
+
   const moveToQuickFormSection = () => {
     if (route === 'home') {
       quickFormSectionRef.current?.scrollIntoView({
@@ -2474,6 +2606,7 @@ function App() {
       })
 
       setPowerlinkKeywordInput('')
+      setAdminPowerlinkCurrentPage(1)
       setAdminNotice(`파워링크 URL 생성 완료: ${responseBody.url}`)
     } catch (error) {
       console.error(error)
@@ -2571,6 +2704,7 @@ function App() {
       if (rollingImageInputRef.current) {
         rollingImageInputRef.current.value = ''
       }
+      setAdminRollingCurrentPage(1)
       setAdminNotice('홈 롤링 사례를 추가했습니다.')
     } catch (error) {
       console.error(error)
@@ -2731,6 +2865,7 @@ function App() {
       })
 
       resetCompanyCaseForm()
+      setAdminCompanyCurrentPage(1)
       setAdminNotice('사기업체 정보를 추가했습니다.')
     } catch (error) {
       console.error(error)
@@ -3036,22 +3171,38 @@ function App() {
                 </form>
 
                 <div className="admin-list-wrap">
-                  <h4>등록된 롤링 사례</h4>
+                  <div className="admin-list-title-row">
+                    <h4>등록된 롤링 사례</h4>
+                    {rollingCases.length > 0 ? <span>{rollingCases.length}개</span> : null}
+                  </div>
                   {rollingCases.length > 0 ? (
-                    <ul className="admin-item-list">
-                      {rollingCases.map((item) => (
-                        <li className="admin-item" key={item.id}>
-                          <div>
-                            <p>{item.category}</p>
-                            <strong>{item.title}</strong>
-                            <span>{item.result}</span>
-                          </div>
-                          <button type="button" onClick={() => handleDeleteRollingCase(item.id, item.image)}>
-                            삭제
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="admin-item-list">
+                        {paginatedAdminRollingCases.map((item) => (
+                          <li className="admin-item" key={item.id}>
+                            <div>
+                              <p>{item.category}</p>
+                              <strong>{item.title}</strong>
+                              <span>{item.result}</span>
+                            </div>
+                            <button type="button" onClick={() => handleDeleteRollingCase(item.id, item.image)}>
+                              삭제
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {shouldShowAdminRollingPagination
+                        ? renderAdminPagination(
+                            activeAdminRollingPage,
+                            adminRollingPageCount,
+                            adminRollingPaginationItems,
+                            handleAdminRollingPageChange,
+                            '등록된 롤링 사례 페이지',
+                            'admin-rolling',
+                          )
+                        : null}
+                    </>
                   ) : (
                     <p className="admin-empty">DB에 저장된 롤링 사례가 아직 없습니다.</p>
                   )}
@@ -3167,24 +3318,37 @@ function App() {
                       </label>
 
                       {filteredAdminCompanyCases.length > 0 ? (
-                        <ul className="admin-item-list">
-                          {filteredAdminCompanyCases.map((item) => (
-                            <li className="admin-item" key={item.id}>
-                              <div>
-                                <p>{item.service}</p>
-                                <strong>{item.name}</strong>
-                              </div>
-                              <div className="admin-item-actions">
-                                <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
-                                  수정
-                                </button>
-                                <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
-                                  삭제
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
+                        <>
+                          <ul className="admin-item-list">
+                            {paginatedAdminCompanyCases.map((item) => (
+                              <li className="admin-item" key={item.id}>
+                                <div>
+                                  <p>{item.service}</p>
+                                  <strong>{item.name}</strong>
+                                </div>
+                                <div className="admin-item-actions">
+                                  <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
+                                    수정
+                                  </button>
+                                  <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
+                                    삭제
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+
+                          {shouldShowAdminCompanyPagination
+                            ? renderAdminPagination(
+                                activeAdminCompanyPage,
+                                adminCompanyPageCount,
+                                adminCompanyPaginationItems,
+                                handleAdminCompanyPageChange,
+                                '등록된 사기업체 정보 페이지',
+                                'admin-company',
+                              )
+                            : null}
+                        </>
                       ) : (
                         <p className="admin-empty">검색 결과가 없습니다.</p>
                       )}
@@ -3218,27 +3382,43 @@ function App() {
                 </form>
 
                 <div className="admin-list-wrap">
-                  <h4>생성된 파워링크 URL</h4>
+                  <div className="admin-list-title-row">
+                    <h4>생성된 파워링크 URL</h4>
+                    {powerlinkLinks.length > 0 ? <span>{powerlinkLinks.length}개</span> : null}
+                  </div>
                   {powerlinkLinks.length > 0 ? (
-                    <ul className="admin-item-list">
-                      {powerlinkLinks.map((item) => (
-                        <li className="admin-item" key={item.id}>
-                          <div>
-                            <p>파워링크 키워드</p>
-                            <strong>{item.keyword}</strong>
-                            <span className="admin-item-url">{item.url}</span>
-                          </div>
-                          <div className="admin-item-actions">
-                            <button type="button" onClick={() => handleCopyPowerlinkLink(item.url)}>
-                              복사
-                            </button>
-                            <button type="button" onClick={() => handleDeletePowerlinkLink(item.id)}>
-                              삭제
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="admin-item-list">
+                        {paginatedAdminPowerlinkLinks.map((item) => (
+                          <li className="admin-item" key={item.id}>
+                            <div>
+                              <p>파워링크 키워드</p>
+                              <strong>{item.keyword}</strong>
+                              <span className="admin-item-url">{item.url}</span>
+                            </div>
+                            <div className="admin-item-actions">
+                              <button type="button" onClick={() => handleCopyPowerlinkLink(item.url)}>
+                                복사
+                              </button>
+                              <button type="button" onClick={() => handleDeletePowerlinkLink(item.id)}>
+                                삭제
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {shouldShowAdminPowerlinkPagination
+                        ? renderAdminPagination(
+                            activeAdminPowerlinkPage,
+                            adminPowerlinkPageCount,
+                            adminPowerlinkPaginationItems,
+                            handleAdminPowerlinkPageChange,
+                            '생성된 파워링크 URL 페이지',
+                            'admin-powerlink',
+                          )
+                        : null}
+                    </>
                   ) : (
                     <p className="admin-empty">아직 생성된 파워링크 URL이 없습니다.</p>
                   )}
