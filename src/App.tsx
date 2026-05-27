@@ -1357,6 +1357,7 @@ function App() {
       route === 'admin' ? 'noindex,nofollow' : 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1',
     )
     upsertMetaTag('property', 'og:type', isCompanyCaseDetail ? 'article' : 'website')
+    upsertMetaTag('property', 'og:site_name', '법무법인 나란')
     upsertMetaTag('property', 'og:title', seoMeta.title)
     upsertMetaTag('property', 'og:description', seoMeta.description)
     upsertMetaTag('property', 'og:url', canonicalUrl)
