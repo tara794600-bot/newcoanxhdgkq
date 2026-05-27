@@ -44,6 +44,14 @@
       "destination": "/api/sitemap"
     },
     {
+      "source": "/companies",
+      "destination": "/api/company-page"
+    },
+    {
+      "source": "/companies/",
+      "destination": "/api/company-page"
+    },
+    {
       "source": "/companies/:id",
       "destination": "/api/company-page?id=:id"
     },

@@ -196,6 +196,8 @@ const SITE_BASE_URL = (
   (import.meta.env.VITE_SITE_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
   'https://www.naranfintech.com'
 )
+const SEARCH_RESULT_SITE_NAME = '법무법인나란'
+const SEARCH_RESULT_SECTION_NAME = '핀테크전문'
 
 const DEFAULT_SEO_KEYWORDS = [
   '법무법인 나란',
@@ -437,6 +439,37 @@ const upsertRouteStructuredData = (data: Record<string, unknown> | null) => {
   script.textContent = JSON.stringify(data)
 }
 
+const getCompaniesBreadcrumbStructuredData = (
+  canonicalUrl: string,
+  selectedCompanyCase: CompanyCase | null,
+) => ({
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: SEARCH_RESULT_SITE_NAME,
+      item: `${SITE_BASE_URL}/`,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: SEARCH_RESULT_SECTION_NAME,
+      item: toAbsoluteSiteUrl(ROUTE_PATHS.companies),
+    },
+    ...(selectedCompanyCase
+      ? [
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: selectedCompanyCase.name,
+            item: canonicalUrl,
+          },
+        ]
+      : []),
+  ],
+})
+
 const getRouteStructuredData = (
   route: PageRoute,
   seoMeta: SeoMeta,
@@ -452,50 +485,60 @@ const getRouteStructuredData = (
 
     return {
       '@context': 'https://schema.org',
-      '@type': 'Article',
-      headline: selectedCompanyCase.name,
-      name: seoMeta.title,
-      description: seoMeta.description,
-      url: canonicalUrl,
-      inLanguage: 'ko-KR',
-      image: imageUrl,
-      articleSection: selectedCompanyCase.service,
-      mainEntityOfPage: {
-        '@type': 'WebPage',
-        '@id': canonicalUrl,
-      },
-      author: {
-        '@type': 'Organization',
-        name: '법무법인 나란',
-        url: SITE_BASE_URL,
-      },
-      publisher: {
-        '@type': 'Organization',
-        name: '법무법인 나란',
-        url: SITE_BASE_URL,
-      },
-      about: [selectedCompanyCase.name, selectedCompanyCase.service, '사기 피해 사례', '피해회복 상담'],
+      '@graph': [
+        {
+          '@type': 'Article',
+          headline: selectedCompanyCase.name,
+          name: seoMeta.title,
+          description: seoMeta.description,
+          url: canonicalUrl,
+          inLanguage: 'ko-KR',
+          image: imageUrl,
+          articleSection: selectedCompanyCase.service,
+          mainEntityOfPage: {
+            '@type': 'WebPage',
+            '@id': canonicalUrl,
+          },
+          author: {
+            '@type': 'Organization',
+            name: '법무법인 나란',
+            url: SITE_BASE_URL,
+          },
+          publisher: {
+            '@type': 'Organization',
+            name: '법무법인 나란',
+            url: SITE_BASE_URL,
+          },
+          about: [selectedCompanyCase.name, selectedCompanyCase.service, '사기 피해 사례', '피해회복 상담'],
+        },
+        getCompaniesBreadcrumbStructuredData(canonicalUrl, selectedCompanyCase),
+      ],
     }
   }
 
   return {
     '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: seoMeta.title,
-    description: seoMeta.description,
-    url: canonicalUrl,
-    inLanguage: 'ko-KR',
-    isPartOf: {
-      '@type': 'WebSite',
-      name: '법무법인 나란',
-      url: SITE_BASE_URL,
-    },
-    about: ['사기업체 게시판', '사기 피해 사례', '피해회복 상담'],
-    mainEntity: {
-      '@type': 'ItemList',
-      name: '사기업체 사례 게시판',
-      description: '금융사기 의심 업체 및 사기 피해 사례를 모아 확인하는 게시판입니다.',
-    },
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: seoMeta.title,
+        description: seoMeta.description,
+        url: canonicalUrl,
+        inLanguage: 'ko-KR',
+        isPartOf: {
+          '@type': 'WebSite',
+          name: SEARCH_RESULT_SITE_NAME,
+          url: SITE_BASE_URL,
+        },
+        about: ['사기업체 게시판', '사기 피해 사례', '피해회복 상담'],
+        mainEntity: {
+          '@type': 'ItemList',
+          name: '사기업체 사례 게시판',
+          description: '금융사기 의심 업체 및 사기 피해 사례를 모아 확인하는 게시판입니다.',
+        },
+      },
+      getCompaniesBreadcrumbStructuredData(canonicalUrl, selectedCompanyCase),
+    ],
   }
 }
 
@@ -1357,7 +1400,7 @@ function App() {
       route === 'admin' ? 'noindex,nofollow' : 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1',
     )
     upsertMetaTag('property', 'og:type', isCompanyCaseDetail ? 'article' : 'website')
-    upsertMetaTag('property', 'og:site_name', '법무법인 나란')
+    upsertMetaTag('property', 'og:site_name', SEARCH_RESULT_SITE_NAME)
     upsertMetaTag('property', 'og:title', seoMeta.title)
     upsertMetaTag('property', 'og:description', seoMeta.description)
     upsertMetaTag('property', 'og:url', canonicalUrl)

@@ -10,6 +10,14 @@ const SITE_BASE_URL = (process.env.SITE_URL || process.env.VITE_SITE_URL || 'htt
 )
 const DEFAULT_IMAGE_URL = `${SITE_BASE_URL}/logo.png`
 const DESCRIPTION_MAX_LENGTH = 155
+const SEARCH_RESULT_SITE_NAME = '법무법인나란'
+const SEARCH_RESULT_SECTION_NAME = '핀테크전문'
+const COMPANIES_PAGE_PATH = '/companies'
+const COMPANIES_PAGE_TITLE = '사기업체 게시판 | 법무법인 나란'
+const COMPANIES_PAGE_DESCRIPTION =
+  '투자사기, 부업사기, 로맨스스캠 등 실제 사기업체 사례를 게시판 형식으로 확인하고 피해회복 상담을 신청하세요.'
+const COMPANIES_PAGE_KEYWORDS =
+  '사기업체 게시판, 사기업체 사례 게시판, 사기 업체 게시판, 사기 피해 게시판, 사기업체 목록, 사기 피해 사례, 피해회복 상담, 법무법인 나란'
 
 const toTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '')
 
@@ -165,6 +173,34 @@ const replaceOrInsertRouteStructuredData = (html, data) => {
   return upsertHeadTag(html, tag)
 }
 
+const getCompaniesBreadcrumbStructuredData = (canonicalUrl, companyCase = null) => ({
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: SEARCH_RESULT_SITE_NAME,
+      item: `${SITE_BASE_URL}/`,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: SEARCH_RESULT_SECTION_NAME,
+      item: `${SITE_BASE_URL}${COMPANIES_PAGE_PATH}`,
+    },
+    ...(companyCase
+      ? [
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: companyCase.name,
+            item: canonicalUrl,
+          },
+        ]
+      : []),
+  ],
+})
+
 const getCompanyCase = async (id) => {
   const app = getFirebaseApp()
   const snapshot = await getFirestore(app).collection('companyCases').doc(id).get()
@@ -192,6 +228,49 @@ const getCompanyCase = async (id) => {
   }
 }
 
+const applyCompaniesPageSeo = (html) => {
+  const canonicalUrl = `${SITE_BASE_URL}${COMPANIES_PAGE_PATH}`
+
+  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(COMPANIES_PAGE_TITLE)}</title>`)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', COMPANIES_PAGE_DESCRIPTION)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'keywords', COMPANIES_PAGE_KEYWORDS)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:type', 'website')
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:site_name', SEARCH_RESULT_SITE_NAME)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:title', COMPANIES_PAGE_TITLE)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:description', COMPANIES_PAGE_DESCRIPTION)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:url', canonicalUrl)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:image', DEFAULT_IMAGE_URL)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'twitter:title', COMPANIES_PAGE_TITLE)
+  nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'twitter:description', COMPANIES_PAGE_DESCRIPTION)
+  nextHtml = replaceOrInsertCanonical(nextHtml, canonicalUrl)
+  nextHtml = replaceOrInsertRouteStructuredData(nextHtml, {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: COMPANIES_PAGE_TITLE,
+        description: COMPANIES_PAGE_DESCRIPTION,
+        url: canonicalUrl,
+        inLanguage: 'ko-KR',
+        isPartOf: {
+          '@type': 'WebSite',
+          name: SEARCH_RESULT_SITE_NAME,
+          url: SITE_BASE_URL,
+        },
+        about: ['사기업체 게시판', '사기 피해 사례', '피해회복 상담'],
+        mainEntity: {
+          '@type': 'ItemList',
+          name: '사기업체 사례 게시판',
+          description: '금융사기 의심 업체 및 사기 피해 사례를 모아 확인하는 게시판입니다.',
+        },
+      },
+      getCompaniesBreadcrumbStructuredData(canonicalUrl),
+    ],
+  })
+
+  return nextHtml
+}
+
 const applyCompanyCaseSeo = (html, companyCase) => {
   const path = `/companies/${encodeURIComponent(companyCase.id)}`
   const canonicalUrl = `${SITE_BASE_URL}${path}`
@@ -207,6 +286,7 @@ const applyCompanyCaseSeo = (html, companyCase) => {
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', description)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'keywords', keywords)
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:type', 'article')
+  nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:site_name', SEARCH_RESULT_SITE_NAME)
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:title', title)
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:description', description)
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:url', canonicalUrl)
@@ -218,29 +298,34 @@ const applyCompanyCaseSeo = (html, companyCase) => {
   nextHtml = replaceOrInsertCanonical(nextHtml, canonicalUrl)
   nextHtml = replaceOrInsertRouteStructuredData(nextHtml, {
     '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: companyCase.name,
-    name: title,
-    description,
-    url: canonicalUrl,
-    inLanguage: 'ko-KR',
-    image: imageUrl,
-    articleSection: companyCase.service,
-    mainEntityOfPage: {
-      '@type': 'WebPage',
-      '@id': canonicalUrl,
-    },
-    author: {
-      '@type': 'Organization',
-      name: '법무법인 나란',
-      url: SITE_BASE_URL,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: '법무법인 나란',
-      url: SITE_BASE_URL,
-    },
-    about: [companyCase.name, companyCase.service, '사기 피해 사례', '피해회복 상담'],
+    '@graph': [
+      {
+        '@type': 'Article',
+        headline: companyCase.name,
+        name: title,
+        description,
+        url: canonicalUrl,
+        inLanguage: 'ko-KR',
+        image: imageUrl,
+        articleSection: companyCase.service,
+        mainEntityOfPage: {
+          '@type': 'WebPage',
+          '@id': canonicalUrl,
+        },
+        author: {
+          '@type': 'Organization',
+          name: '법무법인 나란',
+          url: SITE_BASE_URL,
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: '법무법인 나란',
+          url: SITE_BASE_URL,
+        },
+        about: [companyCase.name, companyCase.service, '사기 피해 사례', '피해회복 상담'],
+      },
+      getCompaniesBreadcrumbStructuredData(canonicalUrl, companyCase),
+    ],
   })
 
   return nextHtml
@@ -280,7 +365,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const html = companyCase ? applyCompanyCaseSeo(indexHtml, companyCase) : indexHtml
+    const html = companyCase ? applyCompanyCaseSeo(indexHtml, companyCase) : applyCompaniesPageSeo(indexHtml)
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.setHeader('Cache-Control', companyCase ? 'public, s-maxage=300, stale-while-revalidate=3600' : 'public, s-maxage=60')
