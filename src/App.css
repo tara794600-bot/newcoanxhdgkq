@@ -1913,6 +1913,9 @@ main {
 
 .company-search-clear {
   position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   top: 50%;
   right: 10px;
   width: 34px;
@@ -1925,6 +1928,7 @@ main {
   font-family: inherit;
   font-size: 22px;
   line-height: 1;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -1958,6 +1962,9 @@ main {
 }
 
 .company-page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 38px;
   height: 38px;
   border: 1px solid #cdd8e5;
@@ -1968,6 +1975,7 @@ main {
   font-size: 15px;
   font-weight: 800;
   line-height: 1;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background 0.18s ease,
@@ -1976,7 +1984,7 @@ main {
     transform 0.18s ease;
 }
 
-.company-page-button:hover:not(:disabled),
+.company-page-button:hover:not(:disabled):not(.is-disabled),
 .company-page-button:focus-visible {
   border-color: #3d79a6;
   color: #1f4f76;
@@ -1990,7 +1998,8 @@ main {
   color: #ffffff;
 }
 
-.company-page-button:disabled {
+.company-page-button:disabled,
+.company-page-button.is-disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -2074,6 +2083,10 @@ main {
 }
 
 .company-detail-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
   border: 1px solid #cdd8e5;
   border-radius: 999px;
   background: #ffffff;
@@ -2083,6 +2096,7 @@ main {
   font-family: inherit;
   font-size: 14px;
   font-weight: 800;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -2142,6 +2156,7 @@ main {
   line-height: 1;
 }
 
+.company-detail-copy h1,
 .company-detail-copy h3 {
   margin: 18px 0 0;
   color: #1f2734;
@@ -3261,6 +3276,7 @@ main {
     aspect-ratio: 122 / 73;
   }
 
+  .company-detail-copy h1,
   .company-detail-copy h3 {
     margin-top: 14px;
     font-size: clamp(24px, 6.4vw, 32px);
@@ -3661,6 +3677,7 @@ main {
     font-size: 12px;
   }
 
+  .company-detail-copy h1,
   .company-detail-copy h3 {
     font-size: clamp(21px, 6vw, 27px);
   }
