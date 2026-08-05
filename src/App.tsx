@@ -13,12 +13,18 @@ import {
   collection,
   deleteDoc,
   doc,
+  type DocumentData,
+  getCountFromServer,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
+  type QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
 } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
@@ -1292,6 +1298,7 @@ function App() {
   const companyDetailStackedRef = useRef(false)
   const shouldScrollToQuickFormRef = useRef(false)
   const adminEnrollmentInProgressRef = useRef(false)
+  const adminCompanyPageEndCursorsRef = useRef<Map<number, QueryDocumentSnapshot<DocumentData>>>(new Map())
 
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<AuthViewMode>('login')
@@ -1321,6 +1328,11 @@ function App() {
   const [companyCasesLoaded, setCompanyCasesLoaded] = useState(
     !isFirebaseConfigured || Boolean(INITIAL_COMPANY_PAGE_DATA),
   )
+  const [adminCompanyCases, setAdminCompanyCases] = useState<CompanyCase[]>([])
+  const [adminCompanyTotalCount, setAdminCompanyTotalCount] = useState(0)
+  const [adminCompanyCasesLoaded, setAdminCompanyCasesLoaded] = useState(!isFirebaseConfigured)
+  const [adminCompanyListError, setAdminCompanyListError] = useState('')
+  const [adminCompanyReloadKey, setAdminCompanyReloadKey] = useState(0)
   const [powerlinkLinks, setPowerlinkLinks] = useState<PowerlinkLink[]>([])
 
   const [adminOpen, setAdminOpen] = useState(false)
@@ -1421,15 +1433,15 @@ function App() {
   const normalizedAdminCompanySearchTerm = adminCompanySearchInput.trim().toLocaleLowerCase('ko-KR')
   const filteredAdminCompanyCases = useMemo(() => {
     if (!normalizedAdminCompanySearchTerm) {
-      return companyCases
+      return adminCompanyCases
     }
 
-    return companyCases.filter((item) =>
+    return adminCompanyCases.filter((item) =>
       [item.name, item.service].some((value) =>
         value.toLocaleLowerCase('ko-KR').includes(normalizedAdminCompanySearchTerm),
       ),
     )
-  }, [companyCases, normalizedAdminCompanySearchTerm])
+  }, [adminCompanyCases, normalizedAdminCompanySearchTerm])
   const adminRollingPageCount = Math.max(1, Math.ceil(rollingCases.length / ADMIN_ITEMS_PER_PAGE))
   const activeAdminRollingPage = Math.min(adminRollingCurrentPage, adminRollingPageCount)
   const paginatedAdminRollingCases = useMemo(() => {
@@ -1441,17 +1453,10 @@ function App() {
     [activeAdminRollingPage, adminRollingPageCount],
   )
   const shouldShowAdminRollingPagination = rollingCases.length > ADMIN_ITEMS_PER_PAGE
-  const adminCompanyPageCount = Math.max(1, Math.ceil(filteredAdminCompanyCases.length / ADMIN_ITEMS_PER_PAGE))
+  const adminCompanyPageCount = Math.max(1, Math.ceil(adminCompanyTotalCount / ADMIN_ITEMS_PER_PAGE))
   const activeAdminCompanyPage = Math.min(adminCompanyCurrentPage, adminCompanyPageCount)
-  const paginatedAdminCompanyCases = useMemo(() => {
-    const startIndex = (activeAdminCompanyPage - 1) * ADMIN_ITEMS_PER_PAGE
-    return filteredAdminCompanyCases.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE)
-  }, [activeAdminCompanyPage, filteredAdminCompanyCases])
-  const adminCompanyPaginationItems = useMemo(
-    () => getPaginationItems(adminCompanyPageCount, activeAdminCompanyPage),
-    [activeAdminCompanyPage, adminCompanyPageCount],
-  )
-  const shouldShowAdminCompanyPagination = filteredAdminCompanyCases.length > ADMIN_ITEMS_PER_PAGE
+  const paginatedAdminCompanyCases = filteredAdminCompanyCases
+  const shouldShowAdminCompanyPagination = adminCompanyTotalCount > ADMIN_ITEMS_PER_PAGE
   const adminPowerlinkPageCount = Math.max(1, Math.ceil(powerlinkLinks.length / ADMIN_ITEMS_PER_PAGE))
   const activeAdminPowerlinkPage = Math.min(adminPowerlinkCurrentPage, adminPowerlinkPageCount)
   const paginatedAdminPowerlinkLinks = useMemo(() => {
@@ -1481,10 +1486,6 @@ function App() {
     () => companyCases.find((item) => item.id === selectedCompanyCaseId) ?? null,
     [companyCases, selectedCompanyCaseId],
   )
-
-  useEffect(() => {
-    setAdminCompanyCurrentPage(1)
-  }, [normalizedAdminCompanySearchTerm])
 
   useEffect(() => {
     if (adminRollingCurrentPage > adminRollingPageCount) {
@@ -2162,7 +2163,6 @@ function App() {
     }
 
     const shouldSubscribeToAllCompanyCases =
-      route === 'admin' ||
       (route === 'home' && Boolean(landingPowerlinkKeyword)) ||
       (route === 'companies' && INITIAL_COMPANY_PAGE_DATA?.kind !== 'list')
 
@@ -2213,6 +2213,103 @@ function App() {
       unsubscribe()
     }
   }, [landingPowerlinkKeyword, route, selectedCompanyCaseId])
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || route !== 'admin' || !isStaff) {
+      setAdminCompanyCases([])
+      setAdminCompanyCasesLoaded(!isFirebaseConfigured)
+      setAdminCompanyListError('')
+      return
+    }
+
+    let active = true
+    setAdminCompanyCasesLoaded(false)
+    setAdminCompanyListError('')
+
+    const loadAdminCompanyPage = async () => {
+      try {
+        const collectionRef = collection(db, 'companyCases')
+        const previousPageCursor =
+          adminCompanyCurrentPage > 1
+            ? adminCompanyPageEndCursorsRef.current.get(adminCompanyCurrentPage - 1)
+            : undefined
+
+        if (adminCompanyCurrentPage > 1 && !previousPageCursor) {
+          setAdminCompanyCurrentPage(1)
+          return
+        }
+
+        const pageQuery = previousPageCursor
+          ? query(
+              collectionRef,
+              orderBy('createdAt', 'desc'),
+              startAfter(previousPageCursor),
+              limit(ADMIN_ITEMS_PER_PAGE),
+            )
+          : query(collectionRef, orderBy('createdAt', 'desc'), limit(ADMIN_ITEMS_PER_PAGE))
+
+        const [snapshot, countSnapshot] = await Promise.all([
+          getDocs(pageQuery),
+          adminCompanyCurrentPage === 1 ? getCountFromServer(collectionRef) : Promise.resolve(null),
+        ])
+
+        if (!active) {
+          return
+        }
+
+        const mappedCases = snapshot.docs
+          .map((snapshotDoc) => {
+            const data = snapshotDoc.data()
+            const name = toTrimmedString(data.name)
+            const service = toTrimmedString(data.service)
+            const description = toTrimmedString(data.description)
+            const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
+
+            if (!name || !service || !description || !image) {
+              return null
+            }
+
+            return {
+              id: snapshotDoc.id,
+              name,
+              service,
+              description,
+              image,
+            }
+          })
+          .filter((item): item is CompanyCase => item !== null)
+
+        const lastSnapshot = snapshot.docs[snapshot.docs.length - 1]
+
+        if (lastSnapshot) {
+          adminCompanyPageEndCursorsRef.current.set(adminCompanyCurrentPage, lastSnapshot)
+        } else {
+          adminCompanyPageEndCursorsRef.current.delete(adminCompanyCurrentPage)
+        }
+
+        if (countSnapshot) {
+          setAdminCompanyTotalCount(countSnapshot.data().count)
+        }
+
+        setAdminCompanyCases(mappedCases)
+        setAdminCompanyCasesLoaded(true)
+      } catch (error) {
+        console.error(error)
+
+        if (active) {
+          setAdminCompanyCases([])
+          setAdminCompanyCasesLoaded(true)
+          setAdminCompanyListError('사기업체 목록을 불러오지 못했습니다. 잠시 후 새로고침해주세요.')
+        }
+      }
+    }
+
+    void loadAdminCompanyPage()
+
+    return () => {
+      active = false
+    }
+  }, [adminCompanyCurrentPage, adminCompanyReloadKey, isStaff, route])
 
   const clearAdminFeedback = () => {
     setAdminNotice('')
@@ -2447,9 +2544,48 @@ function App() {
     const boundedPage = Math.min(Math.max(nextPage, 1), adminCompanyPageCount)
 
     if (boundedPage !== activeAdminCompanyPage) {
+      setAdminCompanySearchInput('')
       setAdminCompanyCurrentPage(boundedPage)
     }
   }
+
+  const refreshAdminCompanyList = () => {
+    adminCompanyPageEndCursorsRef.current.clear()
+    setAdminCompanySearchInput('')
+    setAdminCompanyCasesLoaded(false)
+
+    if (adminCompanyCurrentPage === 1) {
+      setAdminCompanyReloadKey((currentKey) => currentKey + 1)
+    } else {
+      setAdminCompanyCurrentPage(1)
+    }
+  }
+
+  const renderAdminCompanyPagination = () => (
+    <nav className="admin-pagination" aria-label="등록된 사기업체 정보 페이지">
+      <button
+        type="button"
+        className="admin-page-button admin-page-arrow"
+        onClick={() => handleAdminCompanyPageChange(activeAdminCompanyPage - 1)}
+        disabled={activeAdminCompanyPage <= 1 || !adminCompanyCasesLoaded}
+        aria-label="이전 페이지"
+      >
+        ‹
+      </button>
+      <span className="admin-page-status">
+        {activeAdminCompanyPage} / {adminCompanyPageCount}
+      </span>
+      <button
+        type="button"
+        className="admin-page-button admin-page-arrow"
+        onClick={() => handleAdminCompanyPageChange(activeAdminCompanyPage + 1)}
+        disabled={activeAdminCompanyPage >= adminCompanyPageCount || !adminCompanyCasesLoaded}
+        aria-label="다음 페이지"
+      >
+        ›
+      </button>
+    </nav>
+  )
 
   const handleAdminPowerlinkPageChange = (nextPage: number) => {
     const boundedPage = Math.min(Math.max(nextPage, 1), adminPowerlinkPageCount)
@@ -2887,7 +3023,7 @@ function App() {
     const description = companyDescriptionInput.trim()
     const imageFile = companyImageFile
     const editingCase = companyEditingCaseId
-      ? companyCases.find((item) => item.id === companyEditingCaseId) ?? null
+      ? adminCompanyCases.find((item) => item.id === companyEditingCaseId) ?? null
       : null
 
     if (companyEditingCaseId && !editingCase) {
@@ -2937,6 +3073,20 @@ function App() {
           updatedAt: serverTimestamp(),
         })
 
+        setAdminCompanyCases((items) =>
+          items.map((item) =>
+            item.id === editingCase.id
+              ? {
+                  ...item,
+                  name,
+                  service,
+                  description,
+                  image,
+                }
+              : item,
+          ),
+        )
+
         resetCompanyCaseForm()
 
         if (imageFile && image !== editingCase.image) {
@@ -2966,7 +3116,7 @@ function App() {
       })
 
       resetCompanyCaseForm()
-      setAdminCompanyCurrentPage(1)
+      refreshAdminCompanyList()
       setAdminNotice('사기업체 정보를 추가했습니다.')
     } catch (error) {
       console.error(error)
@@ -2993,6 +3143,7 @@ function App() {
 
     try {
       await deleteDoc(doc(db, 'companyCases', id))
+      refreshAdminCompanyList()
 
       let removedManagedImage = false
 
@@ -3389,21 +3540,35 @@ function App() {
                 <div className="admin-list-wrap">
                   <div className="admin-list-title-row">
                     <h4>등록된 사기업체 정보</h4>
-                    {companyCases.length > 0 ? (
-                      <span>
-                        {filteredAdminCompanyCases.length}/{companyCases.length}
-                      </span>
-                    ) : null}
+                    <div className="admin-list-title-actions">
+                      {adminCompanyTotalCount > 0 ? (
+                        <span>
+                          현재 {adminCompanyCases.length}개 · 전체 {adminCompanyTotalCount.toLocaleString('ko-KR')}개
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="admin-list-refresh"
+                        onClick={refreshAdminCompanyList}
+                        disabled={!adminCompanyCasesLoaded}
+                      >
+                        새로고침
+                      </button>
+                    </div>
                   </div>
-                  {companyCases.length > 0 ? (
+                  {!adminCompanyCasesLoaded ? (
+                    <p className="admin-empty">목록을 불러오는 중입니다...</p>
+                  ) : adminCompanyListError ? (
+                    <p className="admin-empty">{adminCompanyListError}</p>
+                  ) : adminCompanyCases.length > 0 ? (
                     <>
                       <label className="admin-list-search">
-                        <span className="visually-hidden">등록된 사기업체 검색</span>
+                        <span className="visually-hidden">현재 페이지의 등록된 사기업체 검색</span>
                         <input
                           type="search"
                           value={adminCompanySearchInput}
                           onChange={(event) => setAdminCompanySearchInput(event.target.value)}
-                          placeholder="업체명, 유형 검색"
+                          placeholder="현재 페이지에서 업체명, 유형 검색"
                           autoComplete="off"
                         />
                         {adminCompanySearchInput ? (
@@ -3419,40 +3584,29 @@ function App() {
                       </label>
 
                       {filteredAdminCompanyCases.length > 0 ? (
-                        <>
-                          <ul className="admin-item-list">
-                            {paginatedAdminCompanyCases.map((item) => (
-                              <li className="admin-item" key={item.id}>
-                                <div>
-                                  <p>{item.service}</p>
-                                  <strong>{item.name}</strong>
-                                </div>
-                                <div className="admin-item-actions">
-                                  <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
-                                    수정
-                                  </button>
-                                  <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
-                                    삭제
-                                  </button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-
-                          {shouldShowAdminCompanyPagination
-                            ? renderAdminPagination(
-                                activeAdminCompanyPage,
-                                adminCompanyPageCount,
-                                adminCompanyPaginationItems,
-                                handleAdminCompanyPageChange,
-                                '등록된 사기업체 정보 페이지',
-                                'admin-company',
-                              )
-                            : null}
-                        </>
+                        <ul className="admin-item-list">
+                          {paginatedAdminCompanyCases.map((item) => (
+                            <li className="admin-item" key={item.id}>
+                              <div>
+                                <p>{item.service}</p>
+                                <strong>{item.name}</strong>
+                              </div>
+                              <div className="admin-item-actions">
+                                <button type="button" onClick={() => handleStartEditCompanyCase(item)}>
+                                  수정
+                                </button>
+                                <button type="button" onClick={() => handleDeleteCompanyCase(item.id, item.image)}>
+                                  삭제
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
                       ) : (
-                        <p className="admin-empty">검색 결과가 없습니다.</p>
+                        <p className="admin-empty">현재 페이지에 검색 결과가 없습니다.</p>
                       )}
+
+                      {shouldShowAdminCompanyPagination ? renderAdminCompanyPagination() : null}
                     </>
                   ) : (
                     <p className="admin-empty">DB에 저장된 사기업체 정보가 아직 없습니다.</p>

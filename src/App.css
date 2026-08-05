@@ -319,6 +319,30 @@
   font-weight: 800;
 }
 
+.admin-list-title-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-list-refresh {
+  border: 1px solid rgba(106, 128, 158, 0.32);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3d4c61;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.admin-list-refresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .admin-list-search {
   position: relative;
   display: block;
@@ -481,6 +505,14 @@
 .admin-page-ellipsis {
   min-width: 18px;
   color: #718096;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.admin-page-status {
+  min-width: 72px;
+  color: #526278;
   font-size: 13px;
   font-weight: 800;
   text-align: center;
