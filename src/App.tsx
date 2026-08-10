@@ -1299,6 +1299,7 @@ function App() {
   const shouldScrollToQuickFormRef = useRef(false)
   const adminEnrollmentInProgressRef = useRef(false)
   const adminCompanyPageEndCursorsRef = useRef<Map<number, QueryDocumentSnapshot<DocumentData>>>(new Map())
+  const adminCompanySearchLoadedRef = useRef(false)
 
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<AuthViewMode>('login')
@@ -1329,6 +1330,11 @@ function App() {
     !isFirebaseConfigured || Boolean(INITIAL_COMPANY_PAGE_DATA),
   )
   const [adminCompanyCases, setAdminCompanyCases] = useState<CompanyCase[]>([])
+  const [adminCompanySearchCases, setAdminCompanySearchCases] = useState<CompanyCase[] | null>(null)
+  const [adminCompanySearchStatus, setAdminCompanySearchStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>(
+    'idle',
+  )
+  const [adminCompanySearchError, setAdminCompanySearchError] = useState('')
   const [adminCompanyTotalCount, setAdminCompanyTotalCount] = useState(0)
   const [adminCompanyCasesLoaded, setAdminCompanyCasesLoaded] = useState(!isFirebaseConfigured)
   const [adminCompanyListError, setAdminCompanyListError] = useState('')
@@ -1431,17 +1437,18 @@ function App() {
   )
   const shouldShowCompanyPagination = companyPageCount > 1
   const normalizedAdminCompanySearchTerm = adminCompanySearchInput.trim().toLocaleLowerCase('ko-KR')
+  const isAdminCompanySearchActive = Boolean(normalizedAdminCompanySearchTerm)
   const filteredAdminCompanyCases = useMemo(() => {
-    if (!normalizedAdminCompanySearchTerm) {
+    if (!isAdminCompanySearchActive) {
       return adminCompanyCases
     }
 
-    return adminCompanyCases.filter((item) =>
+    return (adminCompanySearchCases ?? []).filter((item) =>
       [item.name, item.service].some((value) =>
         value.toLocaleLowerCase('ko-KR').includes(normalizedAdminCompanySearchTerm),
       ),
     )
-  }, [adminCompanyCases, normalizedAdminCompanySearchTerm])
+  }, [adminCompanyCases, adminCompanySearchCases, isAdminCompanySearchActive, normalizedAdminCompanySearchTerm])
   const adminRollingPageCount = Math.max(1, Math.ceil(rollingCases.length / ADMIN_ITEMS_PER_PAGE))
   const activeAdminRollingPage = Math.min(adminRollingCurrentPage, adminRollingPageCount)
   const paginatedAdminRollingCases = useMemo(() => {
@@ -1453,10 +1460,26 @@ function App() {
     [activeAdminRollingPage, adminRollingPageCount],
   )
   const shouldShowAdminRollingPagination = rollingCases.length > ADMIN_ITEMS_PER_PAGE
-  const adminCompanyPageCount = Math.max(1, Math.ceil(adminCompanyTotalCount / ADMIN_ITEMS_PER_PAGE))
+  const adminCompanyResultCount = isAdminCompanySearchActive
+    ? filteredAdminCompanyCases.length
+    : adminCompanyTotalCount
+  const adminCompanyPageCount = Math.max(1, Math.ceil(adminCompanyResultCount / ADMIN_ITEMS_PER_PAGE))
   const activeAdminCompanyPage = Math.min(adminCompanyCurrentPage, adminCompanyPageCount)
-  const paginatedAdminCompanyCases = filteredAdminCompanyCases
-  const shouldShowAdminCompanyPagination = adminCompanyTotalCount > ADMIN_ITEMS_PER_PAGE
+  const paginatedAdminCompanyCases = useMemo(() => {
+    if (!isAdminCompanySearchActive) {
+      return filteredAdminCompanyCases
+    }
+
+    const startIndex = (activeAdminCompanyPage - 1) * ADMIN_ITEMS_PER_PAGE
+    return filteredAdminCompanyCases.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE)
+  }, [activeAdminCompanyPage, filteredAdminCompanyCases, isAdminCompanySearchActive])
+  const shouldShowAdminCompanyPagination = adminCompanyResultCount > ADMIN_ITEMS_PER_PAGE
+  const adminCompanyResultsLoaded = isAdminCompanySearchActive
+    ? adminCompanySearchStatus === 'loaded'
+    : adminCompanyCasesLoaded
+  const activeAdminCompanyListError = isAdminCompanySearchActive
+    ? adminCompanySearchError
+    : adminCompanyListError
   const adminPowerlinkPageCount = Math.max(1, Math.ceil(powerlinkLinks.length / ADMIN_ITEMS_PER_PAGE))
   const activeAdminPowerlinkPage = Math.min(adminPowerlinkCurrentPage, adminPowerlinkPageCount)
   const paginatedAdminPowerlinkLinks = useMemo(() => {
@@ -2217,8 +2240,16 @@ function App() {
   useEffect(() => {
     if (!isFirebaseConfigured || route !== 'admin' || !isStaff) {
       setAdminCompanyCases([])
+      adminCompanySearchLoadedRef.current = false
+      setAdminCompanySearchCases(null)
+      setAdminCompanySearchStatus('idle')
+      setAdminCompanySearchError('')
       setAdminCompanyCasesLoaded(!isFirebaseConfigured)
       setAdminCompanyListError('')
+      return
+    }
+
+    if (isAdminCompanySearchActive) {
       return
     }
 
@@ -2309,7 +2340,76 @@ function App() {
     return () => {
       active = false
     }
-  }, [adminCompanyCurrentPage, adminCompanyReloadKey, isStaff, route])
+  }, [adminCompanyCurrentPage, adminCompanyReloadKey, isAdminCompanySearchActive, isStaff, route])
+
+  useEffect(() => {
+    if (
+      !isFirebaseConfigured ||
+      route !== 'admin' ||
+      !isStaff ||
+      !isAdminCompanySearchActive
+    ) {
+      return
+    }
+
+    if (adminCompanySearchLoadedRef.current) {
+      setAdminCompanySearchStatus('loaded')
+      return
+    }
+
+    let active = true
+    setAdminCompanySearchStatus('loading')
+    setAdminCompanySearchError('')
+
+    const loadAllAdminCompanyCasesForSearch = async () => {
+      try {
+        const snapshot = await getDocs(query(collection(db, 'companyCases'), orderBy('createdAt', 'desc')))
+        const mappedCases = snapshot.docs
+          .map((snapshotDoc) => {
+            const data = snapshotDoc.data()
+            const name = toTrimmedString(data.name)
+            const service = toTrimmedString(data.service)
+            const description = toTrimmedString(data.description)
+            const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
+
+            if (!name || !service || !description || !image) {
+              return null
+            }
+
+            return {
+              id: snapshotDoc.id,
+              name,
+              service,
+              description,
+              image,
+            }
+          })
+          .filter((item): item is CompanyCase => item !== null)
+
+        if (!active) {
+          return
+        }
+
+        adminCompanySearchLoadedRef.current = true
+        setAdminCompanySearchCases(mappedCases)
+        setAdminCompanySearchStatus('loaded')
+      } catch (error) {
+        console.error(error)
+
+        if (active) {
+          setAdminCompanySearchCases([])
+          setAdminCompanySearchStatus('error')
+          setAdminCompanySearchError('전체 사기업체 검색 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+        }
+      }
+    }
+
+    void loadAllAdminCompanyCasesForSearch()
+
+    return () => {
+      active = false
+    }
+  }, [isAdminCompanySearchActive, isStaff, route])
 
   const clearAdminFeedback = () => {
     setAdminNotice('')
@@ -2544,14 +2644,22 @@ function App() {
     const boundedPage = Math.min(Math.max(nextPage, 1), adminCompanyPageCount)
 
     if (boundedPage !== activeAdminCompanyPage) {
-      setAdminCompanySearchInput('')
       setAdminCompanyCurrentPage(boundedPage)
     }
   }
 
+  const handleAdminCompanySearchChange = (value: string) => {
+    setAdminCompanySearchInput(value)
+    setAdminCompanyCurrentPage(1)
+  }
+
   const refreshAdminCompanyList = () => {
     adminCompanyPageEndCursorsRef.current.clear()
+    adminCompanySearchLoadedRef.current = false
     setAdminCompanySearchInput('')
+    setAdminCompanySearchCases(null)
+    setAdminCompanySearchStatus('idle')
+    setAdminCompanySearchError('')
     setAdminCompanyCasesLoaded(false)
 
     if (adminCompanyCurrentPage === 1) {
@@ -2567,7 +2675,7 @@ function App() {
         type="button"
         className="admin-page-button admin-page-arrow"
         onClick={() => handleAdminCompanyPageChange(activeAdminCompanyPage - 1)}
-        disabled={activeAdminCompanyPage <= 1 || !adminCompanyCasesLoaded}
+        disabled={activeAdminCompanyPage <= 1 || !adminCompanyResultsLoaded}
         aria-label="이전 페이지"
       >
         ‹
@@ -2579,7 +2687,7 @@ function App() {
         type="button"
         className="admin-page-button admin-page-arrow"
         onClick={() => handleAdminCompanyPageChange(activeAdminCompanyPage + 1)}
-        disabled={activeAdminCompanyPage >= adminCompanyPageCount || !adminCompanyCasesLoaded}
+        disabled={activeAdminCompanyPage >= adminCompanyPageCount || !adminCompanyResultsLoaded}
         aria-label="다음 페이지"
       >
         ›
@@ -3023,7 +3131,7 @@ function App() {
     const description = companyDescriptionInput.trim()
     const imageFile = companyImageFile
     const editingCase = companyEditingCaseId
-      ? adminCompanyCases.find((item) => item.id === companyEditingCaseId) ?? null
+      ? (adminCompanySearchCases ?? adminCompanyCases).find((item) => item.id === companyEditingCaseId) ?? null
       : null
 
     if (companyEditingCaseId && !editingCase) {
@@ -3085,6 +3193,21 @@ function App() {
                 }
               : item,
           ),
+        )
+        setAdminCompanySearchCases((items) =>
+          items
+            ? items.map((item) =>
+                item.id === editingCase.id
+                  ? {
+                      ...item,
+                      name,
+                      service,
+                      description,
+                      image,
+                    }
+                  : item,
+              )
+            : items,
         )
 
         resetCompanyCaseForm()
@@ -3543,7 +3666,10 @@ function App() {
                     <div className="admin-list-title-actions">
                       {adminCompanyTotalCount > 0 ? (
                         <span>
-                          현재 {adminCompanyCases.length}개 · 전체 {adminCompanyTotalCount.toLocaleString('ko-KR')}개
+                          {isAdminCompanySearchActive
+                            ? `검색 ${adminCompanyResultCount.toLocaleString('ko-KR')}개`
+                            : `현재 ${adminCompanyCases.length}개`}{' '}
+                          · 전체 {adminCompanyTotalCount.toLocaleString('ko-KR')}개
                         </span>
                       ) : null}
                       <button
@@ -3563,19 +3689,19 @@ function App() {
                   ) : adminCompanyCases.length > 0 ? (
                     <>
                       <label className="admin-list-search">
-                        <span className="visually-hidden">현재 페이지의 등록된 사기업체 검색</span>
+                        <span className="visually-hidden">전체 등록된 사기업체 검색</span>
                         <input
                           type="search"
                           value={adminCompanySearchInput}
-                          onChange={(event) => setAdminCompanySearchInput(event.target.value)}
-                          placeholder="현재 페이지에서 업체명, 유형 검색"
+                          onChange={(event) => handleAdminCompanySearchChange(event.target.value)}
+                          placeholder="전체 업체명, 유형 검색"
                           autoComplete="off"
                         />
                         {adminCompanySearchInput ? (
                           <button
                             type="button"
                             className="admin-list-search-clear"
-                            onClick={() => setAdminCompanySearchInput('')}
+                            onClick={() => handleAdminCompanySearchChange('')}
                             aria-label="검색어 지우기"
                           >
                             ×
@@ -3583,7 +3709,11 @@ function App() {
                         ) : null}
                       </label>
 
-                      {filteredAdminCompanyCases.length > 0 ? (
+                      {activeAdminCompanyListError ? (
+                        <p className="admin-empty">{activeAdminCompanyListError}</p>
+                      ) : !adminCompanyResultsLoaded ? (
+                        <p className="admin-empty">전체 목록에서 검색하는 중입니다...</p>
+                      ) : filteredAdminCompanyCases.length > 0 ? (
                         <ul className="admin-item-list">
                           {paginatedAdminCompanyCases.map((item) => (
                             <li className="admin-item" key={item.id}>
@@ -3603,10 +3733,12 @@ function App() {
                           ))}
                         </ul>
                       ) : (
-                        <p className="admin-empty">현재 페이지에 검색 결과가 없습니다.</p>
+                        <p className="admin-empty">전체 목록에 검색 결과가 없습니다.</p>
                       )}
 
-                      {shouldShowAdminCompanyPagination ? renderAdminCompanyPagination() : null}
+                      {adminCompanyResultsLoaded && shouldShowAdminCompanyPagination
+                        ? renderAdminCompanyPagination()
+                        : null}
                     </>
                   ) : (
                     <p className="admin-empty">DB에 저장된 사기업체 정보가 아직 없습니다.</p>
