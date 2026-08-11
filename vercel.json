@@ -2,6 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
+      "source": "/companies/",
+      "destination": "/companies",
+      "permanent": true
+    },
+    {
+      "source": "/companies/:id/",
+      "destination": "/companies/:id",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -48,15 +58,7 @@
       "destination": "/api/company-page"
     },
     {
-      "source": "/companies/",
-      "destination": "/api/company-page"
-    },
-    {
       "source": "/companies/:id",
-      "destination": "/api/company-page?id=:id"
-    },
-    {
-      "source": "/companies/:id/",
       "destination": "/api/company-page?id=:id"
     },
     {
