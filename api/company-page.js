@@ -20,6 +20,7 @@ const COMPANIES_PAGE_KEYWORDS =
   '사기업체 게시판, 사기업체 사례 게시판, 사기 업체 게시판, 사기 피해 게시판, 사기업체 목록, 사기 피해 사례, 피해회복 상담, 법무법인 나란'
 const COMPANY_CASES_PER_PAGE = 40
 const COMPANY_SEARCH_MAX_LENGTH = 120
+const PAGINATION_CRAWL_SEGMENTS = 8
 
 const toTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '')
 
@@ -177,6 +178,11 @@ const getPaginationItems = (totalPages, currentPage) => {
   }
 
   const visiblePages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1])
+  const crawlInterval = Math.ceil((totalPages - 1) / PAGINATION_CRAWL_SEGMENTS)
+
+  for (let page = 1 + crawlInterval; page < totalPages; page += crawlInterval) {
+    visiblePages.add(page)
+  }
 
   if (currentPage <= 4) {
     const leadingPages = [2, 3, 4]
@@ -260,6 +266,32 @@ const replaceOrInsertRouteStructuredData = (html, data) => {
   return upsertHeadTag(html, tag)
 }
 
+const removeHomepageOnlyStructuredData = (html) =>
+  html.replace(
+    /\s*<script\s+[^>]*id=["']homepage-faq-structured-data["'][^>]*>[\s\S]*?<\/script>/i,
+    '',
+  )
+
+const toIsoDateTime = (value) => {
+  if (value && typeof value.toDate === 'function') {
+    return value.toDate().toISOString()
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString()
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsedDate = new Date(value)
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString()
+    }
+  }
+
+  return ''
+}
+
 const getCompaniesBreadcrumbStructuredData = (canonicalUrl, companyCase = null) => ({
   '@type': 'BreadcrumbList',
   itemListElement: [
@@ -305,6 +337,8 @@ const mapCompanyCase = (snapshot) => {
     service,
     description,
     image: image || DEFAULT_IMAGE_URL,
+    datePublished: toIsoDateTime(data.createdAt),
+    dateModified: toIsoDateTime(data.updatedAt ?? data.createdAt),
   }
 }
 
@@ -545,6 +579,7 @@ export const buildCompaniesPageHtml = (html, pageData) => {
     totalPages: pageData.totalPages,
   })
   nextHtml = replaceRootContent(nextHtml, renderCompaniesServerContent(pageData))
+  nextHtml = removeHomepageOnlyStructuredData(nextHtml)
 
   return nextHtml
 }
@@ -586,6 +621,8 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
         inLanguage: 'ko-KR',
         image: imageUrl,
         articleSection: companyCase.service,
+        ...(companyCase.datePublished ? { datePublished: companyCase.datePublished } : {}),
+        ...(companyCase.dateModified ? { dateModified: companyCase.dateModified } : {}),
         mainEntityOfPage: {
           '@type': 'WebPage',
           '@id': canonicalUrl,
@@ -611,6 +648,7 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
     item: companyCase,
   })
   nextHtml = replaceRootContent(nextHtml, renderCompanyCaseServerContent(companyCase))
+  nextHtml = removeHomepageOnlyStructuredData(nextHtml)
 
   return nextHtml
 }
@@ -625,6 +663,7 @@ export const buildNotFoundPageHtml = (html, requestedPath) => {
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'robots', 'noindex,follow')
   nextHtml = replaceOrInsertCanonical(nextHtml, canonicalUrl)
   nextHtml = replaceRootContent(nextHtml, content)
+  nextHtml = removeHomepageOnlyStructuredData(nextHtml)
   nextHtml = nextHtml.replace(/<script\s+[^>]*type=["']module["'][^>]*><\/script>/i, '')
   return nextHtml
 }
