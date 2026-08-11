@@ -87,6 +87,8 @@ type CompanyCase = {
   service: string
   description: string
   image: string
+  datePublished?: string
+  dateModified?: string
 }
 
 type CompanyPageBootstrap =
@@ -535,6 +537,8 @@ const getRouteStructuredData = (
           inLanguage: 'ko-KR',
           image: imageUrl,
           articleSection: selectedCompanyCase.service,
+          ...(selectedCompanyCase.datePublished ? { datePublished: selectedCompanyCase.datePublished } : {}),
+          ...(selectedCompanyCase.dateModified ? { dateModified: selectedCompanyCase.dateModified } : {}),
           mainEntityOfPage: {
             '@type': 'WebPage',
             '@id': canonicalUrl,
@@ -987,8 +991,9 @@ const toTrimmedString = (value: unknown): string => (typeof value === 'string' ?
 const KEYWORD_COMPANY_CASE_LIMIT = 8
 const COMPANY_CASES_PER_PAGE = 40
 const COMPANY_SEARCH_MAX_LENGTH = 120
+const PAGINATION_CRAWL_SEGMENTS = 8
 const ADMIN_ITEMS_PER_PAGE = 30
-type PaginationItem = number | 'ellipsis-start' | 'ellipsis-end'
+type PaginationItem = number | `ellipsis-${number}`
 
 const getPaginationItems = (totalPages: number, currentPage: number): PaginationItem[] => {
   if (totalPages <= 7) {
@@ -996,6 +1001,11 @@ const getPaginationItems = (totalPages: number, currentPage: number): Pagination
   }
 
   const visiblePages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1])
+  const crawlInterval = Math.ceil((totalPages - 1) / PAGINATION_CRAWL_SEGMENTS)
+
+  for (let page = 1 + crawlInterval; page < totalPages; page += crawlInterval) {
+    visiblePages.add(page)
+  }
 
   if (currentPage <= 4) {
     const leadingPages = [2, 3, 4]
@@ -1016,7 +1026,7 @@ const getPaginationItems = (totalPages: number, currentPage: number): Pagination
       if (page - previousPage === 2) {
         items.push(previousPage + 1)
       } else {
-        items.push(index === 1 ? 'ellipsis-start' : 'ellipsis-end')
+        items.push(`ellipsis-${page}`)
       }
     }
 
