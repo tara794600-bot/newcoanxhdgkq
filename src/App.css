@@ -265,6 +265,43 @@
   min-height: 94px;
 }
 
+.admin-form .admin-visibility-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgba(99, 119, 145, 0.24);
+  border-radius: 10px;
+  background: #f4f7fb;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.admin-form .admin-visibility-field input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: #3d79a6;
+}
+
+.admin-visibility-field span {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-visibility-field strong {
+  color: #334258;
+  font-size: 14px;
+}
+
+.admin-visibility-field small {
+  color: #6b7b90;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 .admin-form button {
   margin-top: 4px;
   border: none;
@@ -399,11 +436,36 @@
   background: rgba(248, 250, 253, 0.95);
 }
 
+.admin-item.admin-item-private {
+  border-style: dashed;
+  background: rgba(239, 243, 248, 0.95);
+}
+
 .admin-item p {
   margin: 0;
   color: #3f6f9e;
   font-size: 12px;
   font-weight: 700;
+}
+
+.admin-item .admin-visibility-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 0 6px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.admin-visibility-badge.is-public {
+  background: #37785a;
+}
+
+.admin-visibility-badge.is-private {
+  background: #7a6071;
 }
 
 .admin-item strong {
@@ -451,6 +513,15 @@
   font-weight: 700;
   cursor: pointer;
   background: linear-gradient(135deg, #4e5f78 0%, #2d3c53 100%);
+}
+
+.admin-item button.admin-visibility-action {
+  background: linear-gradient(135deg, #7a6071 0%, #5d4555 100%);
+}
+
+.admin-item button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .admin-pagination {

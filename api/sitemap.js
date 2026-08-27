@@ -85,7 +85,7 @@ const getCompanyCaseUrls = async () => {
       const service = toTrimmedString(data.service)
       const description = toTrimmedString(data.description)
 
-      if (!name || !service || !description) {
+      if (!name || !service || !description || data.isPublic === false) {
         return null
       }
 
