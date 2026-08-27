@@ -673,7 +673,7 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
 export const buildNotFoundPageHtml = (html, requestedPath) => {
   const canonicalUrl = `${SITE_BASE_URL}${requestedPath}`
   const title = '페이지를 찾을 수 없습니다 | 법무법인 나란'
-  const content = `<div class="app-shell"><main><section class="section-wrap companies-grid-wrap"><h1>페이지를 찾을 수 없습니다.</h1><p>삭제되었으나 해당 내용으로 피해 보신 분들은 즉시 1551-7203으로 연락 바랍니다.</p><a class="company-detail-back" href="/companies">사기업체 게시판으로 이동</a></section></main></div>`
+  const content = `<div class="app-shell"><main><section class="section-wrap companies-grid-wrap"><h1>페이지를 찾을 수 없습니다.</h1><p class="company-detail-deleted-message">삭제되었으나 해당 내용으로 피해 보신 분들은 즉시 1551-7203으로 연락 바랍니다.</p><a class="company-detail-back" href="/companies">사기업체 게시판으로 이동</a></section></main></div>`
 
   let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', '요청한 페이지를 찾을 수 없습니다.')
