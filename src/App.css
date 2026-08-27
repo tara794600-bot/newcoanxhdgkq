@@ -2335,6 +2335,15 @@ main {
   font-weight: 700;
 }
 
+.company-detail-empty .company-detail-deleted-message,
+.company-detail-deleted-message {
+  color: #26384a;
+  font-size: clamp(24px, 2.6vw, 34px);
+  font-weight: 800;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
 .company-card-service {
   margin: 0;
   color: #3f6f9e;
@@ -3389,6 +3398,11 @@ main {
     margin-top: 14px;
     font-size: 14px;
     line-height: 1.65;
+  }
+
+  .company-detail-empty .company-detail-deleted-message,
+  .company-detail-deleted-message {
+    font-size: clamp(20px, 5.8vw, 26px);
   }
 
   .company-detail-cta {
