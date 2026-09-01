@@ -2220,7 +2220,7 @@ function App() {
     }
 
     setCompanyCasesLoaded(false)
-    const companyCasesQuery = query(collection(db, 'companyCases'), orderBy('createdAt', 'desc'))
+    const companyCasesQuery = collection(db, 'companyCases')
 
     const unsubscribe = onSnapshot(
       companyCasesQuery,
@@ -2249,7 +2249,7 @@ function App() {
           })
           .filter((item) => item !== null)
 
-        setCompanyCases(route === 'home' ? shuffleCompanyCases(mappedCases) : mappedCases)
+        setCompanyCases(shuffleCompanyCases(mappedCases))
         setCompanyCasesLoaded(true)
       },
       (error) => {

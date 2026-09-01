@@ -343,6 +343,17 @@ const mapCompanyCase = (snapshot) => {
   }
 }
 
+export const shuffleCompanyCases = (items, random = Math.random) => {
+  const shuffledItems = [...items]
+
+  for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(random() * (index + 1))
+    ;[shuffledItems[index], shuffledItems[randomIndex]] = [shuffledItems[randomIndex], shuffledItems[index]]
+  }
+
+  return shuffledItems
+}
+
 const getCompanyCase = async (id) => {
   const app = getFirebaseApp()
   const snapshot = await getFirestore(app).collection('companyCases').doc(id).get()
@@ -357,53 +368,23 @@ const getCompanyCase = async (id) => {
 const getCompaniesPage = async ({ page, searchQuery }) => {
   const app = getFirebaseApp()
   const collectionRef = getFirestore(app).collection('companyCases')
-  let items = []
-  let totalCount = 0
-
-  if (searchQuery) {
-    const snapshot = await collectionRef.orderBy('createdAt', 'desc').get()
-    const normalizedSearchQuery = searchQuery.toLocaleLowerCase('ko-KR')
-    const matchedItems = snapshot.docs
-      .map(mapCompanyCase)
-      .filter(Boolean)
-      .filter((item) => item.isPublic !== false)
-      .filter((item) =>
+  const snapshot = await collectionRef.get()
+  const normalizedSearchQuery = searchQuery.toLocaleLowerCase('ko-KR')
+  const matchedItems = snapshot.docs
+    .map(mapCompanyCase)
+    .filter(Boolean)
+    .filter((item) => item.isPublic !== false)
+    .filter(
+      (item) =>
+        !normalizedSearchQuery ||
         [item.name, item.service, item.description].some((value) =>
           value.toLocaleLowerCase('ko-KR').includes(normalizedSearchQuery),
         ),
-      )
-
-    totalCount = matchedItems.length
-    const startIndex = (page - 1) * COMPANY_CASES_PER_PAGE
-    items = matchedItems.slice(startIndex, startIndex + COMPANY_CASES_PER_PAGE)
-  } else {
-    const privateSnapshot = await collectionRef.where('isPublic', '==', false).limit(1).get()
-
-    if (privateSnapshot.empty) {
-      const countSnapshot = await collectionRef.count().get()
-      totalCount = countSnapshot.data().count
-
-      if (totalCount > 0) {
-        const offset = (page - 1) * COMPANY_CASES_PER_PAGE
-        const snapshot = await collectionRef
-          .orderBy('createdAt', 'desc')
-          .offset(offset)
-          .limit(COMPANY_CASES_PER_PAGE)
-          .get()
-        items = snapshot.docs.map(mapCompanyCase).filter(Boolean)
-      }
-    } else {
-      const snapshot = await collectionRef.orderBy('createdAt', 'desc').get()
-      const publicItems = snapshot.docs
-        .map(mapCompanyCase)
-        .filter(Boolean)
-        .filter((item) => item.isPublic !== false)
-
-      totalCount = publicItems.length
-      const startIndex = (page - 1) * COMPANY_CASES_PER_PAGE
-      items = publicItems.slice(startIndex, startIndex + COMPANY_CASES_PER_PAGE)
-    }
-  }
+    )
+  const shuffledItems = shuffleCompanyCases(matchedItems)
+  const totalCount = shuffledItems.length
+  const startIndex = (page - 1) * COMPANY_CASES_PER_PAGE
+  const items = shuffledItems.slice(startIndex, startIndex + COMPANY_CASES_PER_PAGE)
 
   return {
     items,
@@ -813,7 +794,7 @@ export default async function handler(req, res) {
       res,
       200,
       buildCompaniesPageHtml(indexHtml, pageData),
-      searchQuery ? 'private, no-store' : 'public, s-maxage=300, stale-while-revalidate=3600',
+      'private, no-store, max-age=0, must-revalidate',
     )
   } catch (error) {
     console.error('[api/company-page] error', error)
