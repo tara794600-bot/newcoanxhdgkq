@@ -996,6 +996,17 @@ const PAGINATION_CRAWL_SEGMENTS = 8
 const ADMIN_ITEMS_PER_PAGE = 30
 type PaginationItem = number | `ellipsis-${number}`
 
+const shuffleCompanyCases = (items: CompanyCase[]): CompanyCase[] => {
+  const shuffledItems = [...items]
+
+  for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1))
+    ;[shuffledItems[index], shuffledItems[randomIndex]] = [shuffledItems[randomIndex], shuffledItems[index]]
+  }
+
+  return shuffledItems
+}
+
 const getPaginationItems = (totalPages: number, currentPage: number): PaginationItem[] => {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1)
@@ -2238,7 +2249,7 @@ function App() {
           })
           .filter((item) => item !== null)
 
-        setCompanyCases(mappedCases)
+        setCompanyCases(route === 'home' ? shuffleCompanyCases(mappedCases) : mappedCases)
         setCompanyCasesLoaded(true)
       },
       (error) => {
@@ -4302,7 +4313,7 @@ function App() {
 
             <div className="section-wrap companies-grid-wrap">
               {selectedCompanyCaseId ? (
-                selectedCompanyCase ? (
+                selectedCompanyCase && selectedCompanyCase.isPublic !== false ? (
                   <>
                     <article className="company-detail">
                       <a className="company-detail-back" href={ROUTE_PATHS.companies}>
@@ -4342,7 +4353,9 @@ function App() {
                 ) : companyCasesLoaded ? (
                   <div className="company-detail company-detail-empty">
                     <p className="company-detail-deleted-message">
-                      삭제되었으나 해당 내용으로 피해 보신 분들은 즉시 1551-7203으로 연락 바랍니다.
+                      현재 페이지는 삭제되었습니다.
+                      <br />
+                      해당 내용으로 사칭 피해를 보신 분들은 즉시 1551-7203으로 연락 바랍니다.
                     </p>
                     <a className="company-detail-back" href={ROUTE_PATHS.companies}>
                       목록으로
