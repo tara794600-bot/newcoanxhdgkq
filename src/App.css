@@ -265,18 +265,37 @@
   min-height: 94px;
 }
 
-.admin-form .admin-visibility-field {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.admin-form .admin-visibility-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
   border: 1px solid rgba(99, 119, 145, 0.24);
   border-radius: 10px;
   background: #f4f7fb;
-  padding: 10px 12px;
+  padding: 12px;
+}
+
+.admin-visibility-options legend {
+  padding: 0 5px;
+  color: #334258;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-form .admin-visibility-options label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 7px 8px;
   cursor: pointer;
 }
 
-.admin-form .admin-visibility-field input {
+.admin-form .admin-visibility-options label:has(input:checked) {
+  background: #e5eef7;
+}
+
+.admin-form .admin-visibility-options input {
   flex: 0 0 auto;
   width: 18px;
   height: 18px;
@@ -285,17 +304,17 @@
   accent-color: #3d79a6;
 }
 
-.admin-visibility-field span {
+.admin-visibility-options span {
   display: grid;
   gap: 2px;
 }
 
-.admin-visibility-field strong {
+.admin-visibility-options strong {
   color: #334258;
   font-size: 14px;
 }
 
-.admin-visibility-field small {
+.admin-visibility-options small {
   color: #6b7b90;
   font-size: 12px;
   font-weight: 500;
@@ -464,8 +483,12 @@
   background: #37785a;
 }
 
-.admin-visibility-badge.is-private {
+.admin-visibility-badge.is-phone {
   background: #7a6071;
+}
+
+.admin-visibility-badge.is-search-blocked {
+  background: #8a6a2f;
 }
 
 .admin-item strong {
@@ -517,6 +540,14 @@
 
 .admin-item button.admin-visibility-action {
   background: linear-gradient(135deg, #7a6071 0%, #5d4555 100%);
+}
+
+.admin-item button.admin-visibility-action.is-public-action {
+  background: linear-gradient(135deg, #438565 0%, #286147 100%);
+}
+
+.admin-item button.admin-visibility-action.is-search-blocked-action {
+  background: linear-gradient(135deg, #9a7838 0%, #70531f 100%);
 }
 
 .admin-item button:disabled {
@@ -2342,6 +2373,21 @@ main {
   font-weight: 800;
   line-height: 1.5;
   word-break: keep-all;
+}
+
+.company-detail-call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5488b4 0%, #3d79a6 100%);
+  color: #ffffff;
+  padding: 0 24px;
+  box-shadow: 0 12px 22px rgba(3, 18, 34, 0.18);
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .company-card-service {

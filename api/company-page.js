@@ -21,6 +21,7 @@ const COMPANIES_PAGE_KEYWORDS =
 const COMPANY_CASES_PER_PAGE = 40
 const COMPANY_SEARCH_MAX_LENGTH = 120
 const PAGINATION_CRAWL_SEGMENTS = 8
+const COMPANY_ALERT_PHONE_NUMBER = '1551-7203'
 
 const toTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '')
 
@@ -338,6 +339,7 @@ const mapCompanyCase = (snapshot) => {
     description,
     image: image || DEFAULT_IMAGE_URL,
     isPublic: data.isPublic !== false,
+    isSearchBlocked: data.isSearchBlocked === true,
     datePublished: toIsoDateTime(data.createdAt),
     dateModified: toIsoDateTime(data.updatedAt ?? data.createdAt),
   }
@@ -373,7 +375,7 @@ const getCompaniesPage = async ({ page, searchQuery }) => {
   const matchedItems = snapshot.docs
     .map(mapCompanyCase)
     .filter(Boolean)
-    .filter((item) => item.isPublic !== false)
+    .filter((item) => item.isPublic !== false && item.isSearchBlocked !== true)
     .filter(
       (item) =>
         !normalizedSearchQuery ||
@@ -507,12 +509,16 @@ const renderCompanyCaseServerContent = (companyCase) => {
   </div>`
 }
 
-const renderDeletedCompanyCaseServerContent = () => `<div class="app-shell">
+const renderPhoneCompanyCaseServerContent = (companyCase) => `<div class="app-shell">
   <main>
     <section class="companies-page" aria-label="삭제된 사기업체 상세 사례">
       <div class="section-wrap companies-grid-wrap">
+        <nav aria-label="경로"><a href="/">홈</a> &gt; <a href="/companies">사기업체 게시판</a> &gt; <span>${escapeHtml(
+          companyCase.name,
+        )}</span></nav>
         <article class="company-detail company-detail-empty">
-          <p class="company-detail-deleted-message">현재 페이지는 삭제되었습니다.<br />해당 내용으로 사칭 피해를 보신 분들은 즉시 1551-7203으로 연락 바랍니다.</p>
+          <p class="company-detail-deleted-message">현재 페이지는 삭제되었습니다.<br />해당 내용으로 사칭 피해를 보신 분들은 즉시 ${COMPANY_ALERT_PHONE_NUMBER}으로 연락 바랍니다.</p>
+          <a class="company-detail-call" href="tel:${COMPANY_ALERT_PHONE_NUMBER.replace(/[^0-9+]/g, '')}">전화연결</a>
           <a class="company-detail-back" href="/companies">목록으로</a>
         </article>
       </div>
@@ -521,13 +527,19 @@ const renderDeletedCompanyCaseServerContent = () => `<div class="app-shell">
 </div>`
 
 export const buildCompaniesPageHtml = (html, pageData) => {
-  const isSearchPage = Boolean(pageData.searchQuery)
-  const pagePath = isSearchPage ? COMPANIES_PAGE_PATH : getCompaniesPagePath(pageData.page)
+  const renderPageData = {
+    ...pageData,
+    items: pageData.items.filter(
+      (item) => item.isPublic !== false && item.isSearchBlocked !== true,
+    ),
+  }
+  const isSearchPage = Boolean(renderPageData.searchQuery)
+  const pagePath = isSearchPage ? COMPANIES_PAGE_PATH : getCompaniesPagePath(renderPageData.page)
   const canonicalUrl = `${SITE_BASE_URL}${pagePath}`
   const title = isSearchPage
-    ? `${pageData.searchQuery} 검색 | 사기업체 게시판 | 법무법인 나란`
-    : pageData.page > 1
-      ? `사기업체 게시판 ${pageData.page}페이지 | 법무법인 나란`
+    ? `${renderPageData.searchQuery} 검색 | 사기업체 게시판 | 법무법인 나란`
+    : renderPageData.page > 1
+      ? `사기업체 게시판 ${renderPageData.page}페이지 | 법무법인 나란`
       : COMPANIES_PAGE_TITLE
 
   let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
@@ -568,10 +580,10 @@ export const buildCompaniesPageHtml = (html, pageData) => {
         mainEntity: {
           '@type': 'ItemList',
           name: '사기업체 사례 게시판',
-          numberOfItems: pageData.totalCount,
-          itemListElement: pageData.items.map((item, index) => ({
+          numberOfItems: renderPageData.totalCount,
+          itemListElement: renderPageData.items.map((item, index) => ({
             '@type': 'ListItem',
-            position: (pageData.page - 1) * COMPANY_CASES_PER_PAGE + index + 1,
+            position: (renderPageData.page - 1) * COMPANY_CASES_PER_PAGE + index + 1,
             name: item.name,
             url: `${SITE_BASE_URL}/companies/${encodeURIComponent(item.id)}`,
           })),
@@ -582,13 +594,13 @@ export const buildCompaniesPageHtml = (html, pageData) => {
   })
   nextHtml = replaceOrInsertBootstrapData(nextHtml, {
     kind: 'list',
-    items: pageData.items,
-    page: pageData.page,
-    searchQuery: pageData.searchQuery,
-    totalCount: pageData.totalCount,
-    totalPages: pageData.totalPages,
+    items: renderPageData.items,
+    page: renderPageData.page,
+    searchQuery: renderPageData.searchQuery,
+    totalCount: renderPageData.totalCount,
+    totalPages: renderPageData.totalPages,
   })
-  nextHtml = replaceRootContent(nextHtml, renderCompaniesServerContent(pageData))
+  nextHtml = replaceRootContent(nextHtml, renderCompaniesServerContent(renderPageData))
   nextHtml = removeHomepageOnlyStructuredData(nextHtml)
 
   return nextHtml
@@ -608,6 +620,12 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
   let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', description)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'keywords', keywords)
+  nextHtml = replaceOrInsertMeta(
+    nextHtml,
+    'name',
+    'robots',
+    'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1',
+  )
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:type', 'article')
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:site_name', SEARCH_RESULT_SITE_NAME)
   nextHtml = replaceOrInsertMeta(nextHtml, 'property', 'og:title', title)
@@ -660,7 +678,7 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
   nextHtml = replaceRootContent(
     nextHtml,
     companyCase.isPublic === false
-      ? renderDeletedCompanyCaseServerContent()
+      ? renderPhoneCompanyCaseServerContent(companyCase)
       : renderCompanyCaseServerContent(companyCase),
   )
   nextHtml = removeHomepageOnlyStructuredData(nextHtml)

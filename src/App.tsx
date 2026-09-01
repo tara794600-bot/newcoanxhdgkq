@@ -50,6 +50,7 @@ import './App.css'
 type PageRoute = 'home' | 'lawyers' | 'companies' | 'admin'
 type AuthViewMode = 'login' | 'signup'
 type VisitSource = '' | 'naver' | 'google'
+type CompanyVisibility = 'public' | 'phone' | 'searchBlocked'
 type GoogleTag = (...args: unknown[]) => void
 
 declare global {
@@ -88,8 +89,29 @@ type CompanyCase = {
   description: string
   image: string
   isPublic?: boolean
+  isSearchBlocked?: boolean
   datePublished?: string
   dateModified?: string
+}
+
+const getCompanyVisibility = (item: CompanyCase): CompanyVisibility => {
+  if (item.isPublic === false) {
+    return 'phone'
+  }
+
+  return item.isSearchBlocked === true ? 'searchBlocked' : 'public'
+}
+
+const isCompanyVisibleInSiteSearch = (item: CompanyCase): boolean =>
+  getCompanyVisibility(item) === 'public'
+
+const isPhoneConnectionCompany = (item: CompanyCase): boolean =>
+  getCompanyVisibility(item) === 'phone'
+
+const COMPANY_VISIBILITY_LABELS: Record<CompanyVisibility, string> = {
+  public: '공개',
+  phone: '전화연결',
+  searchBlocked: '검색차단',
 }
 
 type CompanyPageBootstrap =
@@ -1376,7 +1398,7 @@ function App() {
   const [companyNameInput, setCompanyNameInput] = useState('')
   const [companyServiceInput, setCompanyServiceInput] = useState('')
   const [companyDescriptionInput, setCompanyDescriptionInput] = useState('')
-  const [companyIsPublicInput, setCompanyIsPublicInput] = useState(true)
+  const [companyVisibilityInput, setCompanyVisibilityInput] = useState<CompanyVisibility>('public')
   const [companyImageFile, setCompanyImageFile] = useState<File | null>(null)
   const [companyUploadBusy, setCompanyUploadBusy] = useState(false)
   const [companyVisibilityBusyId, setCompanyVisibilityBusyId] = useState('')
@@ -2189,10 +2211,11 @@ function App() {
           const description = toTrimmedString(data.description)
           const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl) || logoImg
           const isPublic = data.isPublic !== false
+          const isSearchBlocked = data.isSearchBlocked === true
 
           setCompanyCases(
-            name && service && description && isPublic
-              ? [{ id: snapshot.id, name, service, description, image, isPublic }]
+            name && service && description
+              ? [{ id: snapshot.id, name, service, description, image, isPublic, isSearchBlocked }]
               : [],
           )
           setCompanyCasesLoaded(true)
@@ -2233,8 +2256,9 @@ function App() {
             const description = toTrimmedString(data.description)
             const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
             const isPublic = data.isPublic !== false
+            const isSearchBlocked = data.isSearchBlocked === true
 
-            if (!name || !service || !description || !image || !isPublic) {
+            if (!name || !service || !description || !image || !isPublic || isSearchBlocked) {
               return null
             }
 
@@ -2245,6 +2269,7 @@ function App() {
               description,
               image,
               isPublic,
+              isSearchBlocked,
             }
           })
           .filter((item) => item !== null)
@@ -2323,6 +2348,7 @@ function App() {
             const description = toTrimmedString(data.description)
             const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
             const isPublic = data.isPublic !== false
+            const isSearchBlocked = data.isSearchBlocked === true
 
             if (!name || !service || !description || !image) {
               return null
@@ -2335,6 +2361,7 @@ function App() {
               description,
               image,
               isPublic,
+              isSearchBlocked,
             }
           })
           .filter((item) => item !== null)
@@ -2401,6 +2428,7 @@ function App() {
             const description = toTrimmedString(data.description)
             const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
             const isPublic = data.isPublic !== false
+            const isSearchBlocked = data.isSearchBlocked === true
 
             if (!name || !service || !description || !image) {
               return null
@@ -2413,6 +2441,7 @@ function App() {
               description,
               image,
               isPublic,
+              isSearchBlocked,
             }
           })
           .filter((item) => item !== null)
@@ -3124,7 +3153,7 @@ function App() {
     setCompanyNameInput('')
     setCompanyServiceInput('')
     setCompanyDescriptionInput('')
-    setCompanyIsPublicInput(true)
+    setCompanyVisibilityInput('public')
     setCompanyImageFile(null)
 
     if (companyImageInputRef.current) {
@@ -3138,7 +3167,7 @@ function App() {
     setCompanyNameInput(item.name)
     setCompanyServiceInput(item.service)
     setCompanyDescriptionInput(item.description)
-    setCompanyIsPublicInput(item.isPublic !== false)
+    setCompanyVisibilityInput(getCompanyVisibility(item))
     setCompanyImageFile(null)
 
     if (companyImageInputRef.current) {
@@ -3162,7 +3191,9 @@ function App() {
     const name = companyNameInput.trim()
     const service = companyServiceInput.trim()
     const description = companyDescriptionInput.trim()
-    const isPublic = companyIsPublicInput
+    const visibility = companyVisibilityInput
+    const isPublic = visibility !== 'phone'
+    const isSearchBlocked = visibility === 'searchBlocked'
     const imageFile = companyImageFile
     const editingCase = companyEditingCaseId
       ? (adminCompanySearchCases ?? adminCompanyCases).find((item) => item.id === companyEditingCaseId) ?? null
@@ -3213,6 +3244,7 @@ function App() {
           description,
           image,
           isPublic,
+          isSearchBlocked,
           updatedAt: serverTimestamp(),
         })
 
@@ -3226,6 +3258,7 @@ function App() {
                   description,
                   image,
                   isPublic,
+                  isSearchBlocked,
                 }
               : item,
           ),
@@ -3241,13 +3274,14 @@ function App() {
                       description,
                       image,
                       isPublic,
+                      isSearchBlocked,
                     }
                   : item,
               )
             : items,
         )
         setCompanyCases((items) =>
-          isPublic
+          isPublic && !isSearchBlocked
             ? items.map((item) =>
                 item.id === editingCase.id
                   ? {
@@ -3257,6 +3291,7 @@ function App() {
                       description,
                       image,
                       isPublic,
+                      isSearchBlocked,
                     }
                   : item,
               )
@@ -3287,6 +3322,7 @@ function App() {
         description,
         image,
         isPublic,
+        isSearchBlocked,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdBy: currentUser.uid,
@@ -3310,7 +3346,7 @@ function App() {
     }
   }
 
-  const handleToggleCompanyCaseVisibility = async (item: CompanyCase) => {
+  const handleSetCompanyCaseVisibility = async (item: CompanyCase, visibility: CompanyVisibility) => {
     clearAdminFeedback()
 
     if (!isStaff) {
@@ -3318,12 +3354,20 @@ function App() {
       return
     }
 
-    const isPublic = item.isPublic === false
+    const currentVisibility = getCompanyVisibility(item)
+
+    if (currentVisibility === visibility) {
+      return
+    }
+
+    const isPublic = visibility !== 'phone'
+    const isSearchBlocked = visibility === 'searchBlocked'
     setCompanyVisibilityBusyId(item.id)
 
     try {
       await updateDoc(doc(db, 'companyCases', item.id), {
         isPublic,
+        isSearchBlocked,
         updatedAt: serverTimestamp(),
       })
 
@@ -3333,6 +3377,7 @@ function App() {
             ? {
                 ...currentItem,
                 isPublic,
+                isSearchBlocked,
               }
             : currentItem,
         )
@@ -3340,18 +3385,21 @@ function App() {
       setAdminCompanyCases(updateVisibility)
       setAdminCompanySearchCases((items) => (items ? updateVisibility(items) : items))
       setCompanyCases((items) =>
-        isPublic ? updateVisibility(items) : items.filter((currentItem) => currentItem.id !== item.id),
+        isPublic && !isSearchBlocked
+          ? updateVisibility(items)
+          : items.filter((currentItem) => currentItem.id !== item.id),
       )
 
       if (companyEditingCaseId === item.id) {
-        setCompanyIsPublicInput(isPublic)
+        setCompanyVisibilityInput(visibility)
       }
 
-      setAdminNotice(
-        isPublic
-          ? '사기업체 게시물을 공개했습니다.'
-          : '사기업체 게시물을 비공개 처리했습니다. 관리자 화면에서 계속 수정할 수 있습니다.',
-      )
+      const visibilityNotices: Record<CompanyVisibility, string> = {
+        public: '사기업체 게시물을 공개했습니다.',
+        phone: '사기업체 게시물을 전화연결로 변경했습니다. 내부 검색에서는 숨겨지고 외부 검색 상세에서는 전화 안내가 표시됩니다.',
+        searchBlocked: '사기업체 게시물을 검색차단으로 변경했습니다. 내부 검색에서는 숨겨지고 외부 검색 상세는 정상 표시됩니다.',
+      }
+      setAdminNotice(visibilityNotices[visibility])
     } catch (error) {
       console.error(error)
       setAdminError('사기업체 게시물 공개 상태 변경에 실패했습니다.')
@@ -3730,18 +3778,48 @@ function App() {
                       required
                     />
                   </label>
-                  <label className="admin-visibility-field">
-                    <input
-                      type="checkbox"
-                      checked={companyIsPublicInput}
-                      onChange={(event) => setCompanyIsPublicInput(event.target.checked)}
-                      disabled={companyUploadBusy}
-                    />
-                    <span>
-                      <strong>게시물 공개</strong>
-                      <small>체크를 해제하면 일반 게시판에서는 숨겨지고 관리자만 수정할 수 있습니다.</small>
-                    </span>
-                  </label>
+                  <fieldset className="admin-visibility-options" disabled={companyUploadBusy}>
+                    <legend>게시물 노출 설정</legend>
+                    <label>
+                      <input
+                        type="radio"
+                        name="company-visibility"
+                        value="public"
+                        checked={companyVisibilityInput === 'public'}
+                        onChange={() => setCompanyVisibilityInput('public')}
+                      />
+                      <span>
+                        <strong>공개</strong>
+                        <small>홈페이지 목록과 내부 검색, 네이버·구글 상세 페이지에 모두 표시됩니다.</small>
+                      </span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="company-visibility"
+                        value="phone"
+                        checked={companyVisibilityInput === 'phone'}
+                        onChange={() => setCompanyVisibilityInput('phone')}
+                      />
+                      <span>
+                        <strong>전화연결</strong>
+                        <small>내부 검색에서는 숨기고, 외부 검색 유입 시 전화 안내 화면을 표시합니다.</small>
+                      </span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="company-visibility"
+                        value="searchBlocked"
+                        checked={companyVisibilityInput === 'searchBlocked'}
+                        onChange={() => setCompanyVisibilityInput('searchBlocked')}
+                      />
+                      <span>
+                        <strong>검색차단</strong>
+                        <small>내부 검색에서만 숨기고, 외부 검색 유입 시 기존 상세 페이지를 그대로 표시합니다.</small>
+                      </span>
+                    </label>
+                  </fieldset>
                   <label>
                     {companyEditingCaseId ? '이미지 파일 (선택)' : '이미지 파일'}
                     <input
@@ -3833,7 +3911,9 @@ function App() {
                         <ul className="admin-item-list">
                           {paginatedAdminCompanyCases.map((item) => (
                             <li
-                              className={`admin-item${item.isPublic === false ? ' admin-item-private' : ''}`}
+                              className={`admin-item${
+                                isCompanyVisibleInSiteSearch(item) ? '' : ' admin-item-private'
+                              }`}
                               key={item.id}
                             >
                               <div>
@@ -3841,10 +3921,14 @@ function App() {
                                   {item.service}
                                   <span
                                     className={`admin-visibility-badge${
-                                      item.isPublic === false ? ' is-private' : ' is-public'
+                                      getCompanyVisibility(item) === 'public'
+                                        ? ' is-public'
+                                        : getCompanyVisibility(item) === 'phone'
+                                          ? ' is-phone'
+                                          : ' is-search-blocked'
                                     }`}
                                   >
-                                    {item.isPublic === false ? '비공개' : '공개'}
+                                    {COMPANY_VISIBILITY_LABELS[getCompanyVisibility(item)]}
                                   </span>
                                 </p>
                                 <strong>{item.name}</strong>
@@ -3857,18 +3941,36 @@ function App() {
                                 >
                                   수정
                                 </button>
-                                <button
-                                  type="button"
-                                  className="admin-visibility-action"
-                                  onClick={() => handleToggleCompanyCaseVisibility(item)}
-                                  disabled={companyVisibilityBusyId === item.id}
-                                >
-                                  {companyVisibilityBusyId === item.id
-                                    ? '처리 중'
-                                    : item.isPublic === false
-                                      ? '공개'
-                                      : '비공개'}
-                                </button>
+                                {getCompanyVisibility(item) !== 'public' ? (
+                                  <button
+                                    type="button"
+                                    className="admin-visibility-action is-public-action"
+                                    onClick={() => handleSetCompanyCaseVisibility(item, 'public')}
+                                    disabled={companyVisibilityBusyId === item.id}
+                                  >
+                                    {companyVisibilityBusyId === item.id ? '처리 중' : '공개'}
+                                  </button>
+                                ) : null}
+                                {getCompanyVisibility(item) !== 'phone' ? (
+                                  <button
+                                    type="button"
+                                    className="admin-visibility-action is-phone-action"
+                                    onClick={() => handleSetCompanyCaseVisibility(item, 'phone')}
+                                    disabled={companyVisibilityBusyId === item.id}
+                                  >
+                                    {companyVisibilityBusyId === item.id ? '처리 중' : '전화연결'}
+                                  </button>
+                                ) : null}
+                                {getCompanyVisibility(item) !== 'searchBlocked' ? (
+                                  <button
+                                    type="button"
+                                    className="admin-visibility-action is-search-blocked-action"
+                                    onClick={() => handleSetCompanyCaseVisibility(item, 'searchBlocked')}
+                                    disabled={companyVisibilityBusyId === item.id}
+                                  >
+                                    {companyVisibilityBusyId === item.id ? '처리 중' : '검색차단'}
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteCompanyCase(item.id, item.image)}
@@ -4313,7 +4415,7 @@ function App() {
 
             <div className="section-wrap companies-grid-wrap">
               {selectedCompanyCaseId ? (
-                selectedCompanyCase && selectedCompanyCase.isPublic !== false ? (
+                selectedCompanyCase && !isPhoneConnectionCompany(selectedCompanyCase) ? (
                   <>
                     <article className="company-detail">
                       <a className="company-detail-back" href={ROUTE_PATHS.companies}>
@@ -4357,6 +4459,11 @@ function App() {
                       <br />
                       해당 내용으로 사칭 피해를 보신 분들은 즉시 1551-7203으로 연락 바랍니다.
                     </p>
+                    {selectedCompanyCase && isPhoneConnectionCompany(selectedCompanyCase) ? (
+                      <a className="company-detail-call" href="tel:15517203">
+                        전화연결
+                      </a>
+                    ) : null}
                     <a className="company-detail-back" href={ROUTE_PATHS.companies}>
                       목록으로
                     </a>
