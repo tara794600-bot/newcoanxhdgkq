@@ -1400,6 +1400,8 @@ function App() {
   const [companyDescriptionInput, setCompanyDescriptionInput] = useState('')
   const [companyVisibilityInput, setCompanyVisibilityInput] = useState<CompanyVisibility>('public')
   const [companyImageFile, setCompanyImageFile] = useState<File | null>(null)
+  const [companyImagePreviewUrl, setCompanyImagePreviewUrl] = useState('')
+  const [companyExistingImageUrl, setCompanyExistingImageUrl] = useState('')
   const [companyUploadBusy, setCompanyUploadBusy] = useState(false)
   const [companyVisibilityBusyId, setCompanyVisibilityBusyId] = useState('')
   const [companyEditingCaseId, setCompanyEditingCaseId] = useState('')
@@ -1442,6 +1444,20 @@ function App() {
   const [companyDetailStacked, setCompanyDetailStacked] = useState(false)
   const [heroStatValues, setHeroStatValues] = useState<number[]>(() => HERO_STAT_ITEMS.map(() => 0))
   const [heroStatsShouldAnimate, setHeroStatsShouldAnimate] = useState(false)
+
+  useEffect(() => {
+    if (!companyImageFile) {
+      setCompanyImagePreviewUrl('')
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(companyImageFile)
+    setCompanyImagePreviewUrl(previewUrl)
+
+    return () => {
+      URL.revokeObjectURL(previewUrl)
+    }
+  }, [companyImageFile])
 
   const landingPath = window.location.pathname || '/'
   const landingSearch = getTrackableQueryString(window.location.search || '', window.location.hash || '')
@@ -3155,6 +3171,7 @@ function App() {
     setCompanyDescriptionInput('')
     setCompanyVisibilityInput('public')
     setCompanyImageFile(null)
+    setCompanyExistingImageUrl('')
 
     if (companyImageInputRef.current) {
       companyImageInputRef.current.value = ''
@@ -3169,6 +3186,7 @@ function App() {
     setCompanyDescriptionInput(item.description)
     setCompanyVisibilityInput(getCompanyVisibility(item))
     setCompanyImageFile(null)
+    setCompanyExistingImageUrl(item.image)
 
     if (companyImageInputRef.current) {
       companyImageInputRef.current.value = ''
@@ -3820,16 +3838,33 @@ function App() {
                       </span>
                     </label>
                   </fieldset>
-                  <label>
+                  <label className="admin-image-file-field">
                     {companyEditingCaseId ? '이미지 파일 (선택)' : '이미지 파일'}
-                    <input
-                      ref={companyImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => setCompanyImageFile(event.target.files?.[0] ?? null)}
-                      required={!companyEditingCaseId}
-                      disabled={companyUploadBusy}
-                    />
+                    <div className="admin-image-file-row">
+                      {companyImagePreviewUrl || companyExistingImageUrl ? (
+                        <div className="admin-image-preview">
+                          <img
+                            src={companyImagePreviewUrl || companyExistingImageUrl}
+                            alt={companyImagePreviewUrl ? '새로 선택한 이미지 미리보기' : '현재 등록된 이미지 미리보기'}
+                          />
+                        </div>
+                      ) : null}
+                      <div className="admin-image-file-control">
+                        <input
+                          ref={companyImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => setCompanyImageFile(event.target.files?.[0] ?? null)}
+                          required={!companyEditingCaseId}
+                          disabled={companyUploadBusy}
+                        />
+                        {companyImagePreviewUrl || companyExistingImageUrl ? (
+                          <small className="admin-image-preview-status">
+                            {companyImagePreviewUrl ? '새로 선택한 이미지' : '현재 등록된 이미지'}
+                          </small>
+                        ) : null}
+                      </div>
+                    </div>
                   </label>
                   <div className="admin-form-actions">
                     <button type="submit" disabled={companyUploadBusy}>
