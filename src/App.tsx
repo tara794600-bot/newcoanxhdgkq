@@ -1490,7 +1490,7 @@ function App() {
     INITIAL_COMPANY_PAGE_DATA?.kind === 'list'
       ? INITIAL_COMPANY_PAGE_DATA.searchQuery
       : getRequestedCompanySearchQuery()
-  const filteredCompanyCases = companyCases
+  const filteredCompanyCases = companyCases.filter(isCompanyVisibleInSiteSearch)
   const companyPageCount = Math.max(1, companyTotalPages)
   const activeCompanyPage = Math.min(companyCurrentPage, companyPageCount)
   const paginatedCompanyCases = filteredCompanyCases
@@ -2250,8 +2250,9 @@ function App() {
       }
     }
 
+    const isPowerlinkLanding = route === 'home' && Boolean(landingPowerlinkKeyword)
     const shouldSubscribeToAllCompanyCases =
-      (route === 'home' && Boolean(landingPowerlinkKeyword)) ||
+      isPowerlinkLanding ||
       (route === 'companies' && INITIAL_COMPANY_PAGE_DATA?.kind !== 'list')
 
     if (!shouldSubscribeToAllCompanyCases) {
@@ -2275,7 +2276,11 @@ function App() {
             const isPublic = data.isPublic !== false
             const isSearchBlocked = data.isSearchBlocked === true
 
-            if (!name || !service || !description || !image || !isPublic || isSearchBlocked) {
+            // 검색차단 글도 파워링크 검색어의 관련 게시글 섹션에는 표시한다.
+            if (
+              !name || !service || !description || !image || !isPublic ||
+              (isSearchBlocked && !isPowerlinkLanding)
+            ) {
               return null
             }
 
@@ -4556,6 +4561,7 @@ function App() {
                               <div className="company-card-thumb-wrap">
                                 <img src={item.image} alt={`${item.name} 이미지`} className="company-card-image" />
                               </div>
+                              <span className="company-card-status">피해 사례 접수중</span>
                               <p className="company-card-name">{item.name}</p>
                             </a>
                           ))

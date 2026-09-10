@@ -446,6 +446,7 @@ const renderCompaniesServerContent = (pageData) => {
                 `${item.name} 이미지`,
               )}" class="company-card-image" loading="lazy" />
             </div>
+            <span class="company-card-status">피해 사례 접수중</span>
             <p class="company-card-name">${escapeHtml(item.name)}</p>
           </a>`,
         )
