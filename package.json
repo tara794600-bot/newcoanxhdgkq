@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "powerlink:url": "node scripts/generate-powerlink-url.mjs",
-    "verify:seo": "node scripts/verify-seo-rendering.mjs"
+    "verify:seo": "node scripts/verify-seo-rendering.mjs && node scripts/verify-site-content.mjs"
   },
   "dependencies": {
     "firebase": "^12.12.0",

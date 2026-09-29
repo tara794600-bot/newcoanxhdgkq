@@ -4,6 +4,7 @@ import {
   buildCompaniesPageHtml,
   buildCompanyCasePageHtml,
   buildNotFoundPageHtml,
+  shuffleCompanyCases,
 } from '../api/company-page.js'
 import { renderSitemap } from '../api/sitemap.js'
 
@@ -26,6 +27,16 @@ const sampleItems = [
     image: '/logo.png',
   },
 ]
+
+const shuffledItems = shuffleCompanyCases(sampleItems, () => 0)
+assert.deepEqual(
+  shuffledItems.map((item) => item.id),
+  ['sample-two', 'sample-one'],
+)
+assert.deepEqual(
+  sampleItems.map((item) => item.id),
+  ['sample-one', 'sample-two'],
+)
 
 const listHtml = buildCompaniesPageHtml(indexHtml, {
   items: sampleItems,
@@ -55,8 +66,48 @@ assert.match(detailHtml, /"dateModified":"2026-08-02T04:05:06.000Z"/)
 assert.match(detailHtml, /"kind":"detail"/)
 assert.doesNotMatch(detailHtml, /homepage-faq-structured-data/)
 
+const privateDetailHtml = buildCompanyCasePageHtml(indexHtml, {
+  ...sampleItems[0],
+  isPublic: false,
+  isSearchBlocked: false,
+})
+
+assert.match(privateDetailHtml, /<title>샘플 업체 1 \| 사기업체 게시판 \| 법무법인 나란<\/title>/)
+assert.match(privateDetailHtml, /현재 페이지는 삭제되었습니다\.<br \/>해당 내용으로 사칭 피해를 보신 분들은 즉시 1551-7203으로 연락 바랍니다\./)
+assert.match(privateDetailHtml, /href="tel:15517203">전화연결<\/a>/)
+assert.match(privateDetailHtml, /content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/)
+assert.match(privateDetailHtml, /"isPublic":false/)
+
+const searchBlockedDetailHtml = buildCompanyCasePageHtml(indexHtml, {
+  ...sampleItems[0],
+  isPublic: true,
+  isSearchBlocked: true,
+})
+
+assert.match(searchBlockedDetailHtml, /<h1>샘플 업체 1<\/h1>/)
+assert.match(searchBlockedDetailHtml, /<p class="company-detail-description">첫 번째 줄<\/p>/)
+assert.doesNotMatch(searchBlockedDetailHtml, /현재 페이지는 삭제되었습니다/)
+assert.match(searchBlockedDetailHtml, /content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/)
+assert.match(searchBlockedDetailHtml, /"isSearchBlocked":true/)
+
 const searchHtml = buildCompaniesPageHtml(indexHtml, {
-  items: sampleItems,
+  items: [
+    ...sampleItems,
+    {
+      ...sampleItems[0],
+      id: 'phone-hidden',
+      name: '전화연결 숨김 업체',
+      isPublic: false,
+      isSearchBlocked: false,
+    },
+    {
+      ...sampleItems[0],
+      id: 'search-blocked-hidden',
+      name: '검색차단 숨김 업체',
+      isPublic: true,
+      isSearchBlocked: true,
+    },
+  ],
   page: 1,
   searchQuery: '샘플',
   totalCount: 2,
@@ -65,6 +116,8 @@ const searchHtml = buildCompaniesPageHtml(indexHtml, {
 
 assert.match(searchHtml, /content="noindex,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/)
 assert.match(searchHtml, /<link rel="canonical" href="https:\/\/www\.naranfintech\.com\/companies"/)
+assert.doesNotMatch(searchHtml, /href="\/companies\/phone-hidden"/)
+assert.doesNotMatch(searchHtml, /href="\/companies\/search-blocked-hidden"/)
 
 const notFoundHtml = buildNotFoundPageHtml(indexHtml, '/companies/missing')
 assert.match(notFoundHtml, /content="noindex,follow"/)
@@ -74,9 +127,13 @@ assert.doesNotMatch(notFoundHtml, /<script\s+[^>]*type="module"/)
 const sitemap = renderSitemap([
   { loc: 'https://www.naranfintech.com/companies/sample-one', lastmod: '2026-08-01' },
   { loc: 'https://www.naranfintech.com/companies/sample-two', lastmod: '2026-08-03' },
+  { loc: 'https://www.naranfintech.com/companies/phone-hidden', lastmod: '2026-08-02' },
+  { loc: 'https://www.naranfintech.com/companies/search-blocked-hidden', lastmod: '2026-08-02' },
 ])
 
 assert.match(sitemap, /<lastmod>2026-08-03<\/lastmod>/)
+assert.match(sitemap, /<loc>https:\/\/www\.naranfintech\.com\/companies\/phone-hidden<\/loc>/)
+assert.match(sitemap, /<loc>https:\/\/www\.naranfintech\.com\/companies\/search-blocked-hidden<\/loc>/)
 assert.doesNotMatch(sitemap, /<changefreq>|<priority>|\/rss\.xml/)
 
 console.log('SEO rendering verification passed')

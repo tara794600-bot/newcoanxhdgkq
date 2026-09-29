@@ -46,6 +46,11 @@ import law2Img from './assets/law2.png'
 import law3Img from './assets/law3.png'
 import bannerImg from './assets/banner.png'
 import { auth, db, isFirebaseConfigured, storage } from './firebase'
+import { CompanyContentPreview } from './components/CompanyContentPreview'
+import {
+  getContentSite,
+  resolveCompanyContent,
+} from '../shared/company-content.js'
 import './App.css'
 
 type PageRoute = 'home' | 'lawyers' | 'companies' | 'admin'
@@ -238,10 +243,12 @@ const ROUTE_PATHS: Record<PageRoute, string> = {
   admin: '/admin',
 }
 
-const SITE_BASE_URL = (
-  (import.meta.env.VITE_SITE_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
-  'https://www.naranfintech.com'
-)
+const CONTENT_SITE = getContentSite({
+  hostname: window.location.hostname,
+  siteId: import.meta.env.VITE_SITE_ID,
+  siteUrl: import.meta.env.VITE_SITE_URL,
+})
+const SITE_BASE_URL = CONTENT_SITE.url
 const SEARCH_RESULT_SITE_NAME = '법무법인 나란'
 const SEARCH_RESULT_SECTION_NAME = '핀테크 전문'
 
@@ -2222,7 +2229,7 @@ function App() {
             return
           }
 
-          const data = snapshot.data()
+          const data = resolveCompanyContent(snapshot.data(), CONTENT_SITE.id)
           const name = toTrimmedString(data.name)
           const service = toTrimmedString(data.service)
           const description = toTrimmedString(data.description)
@@ -2296,7 +2303,9 @@ function App() {
           })
           .filter((item) => item !== null)
 
-        setCompanyCases(shuffleCompanyCases(mappedCases))
+        setCompanyCases(
+          shuffleCompanyCases(mappedCases.map((item) => resolveCompanyContent(item, CONTENT_SITE.id))),
+        )
         setCompanyCasesLoaded(true)
       },
       (error) => {
@@ -3308,15 +3317,10 @@ function App() {
           isPublic && !isSearchBlocked
             ? items.map((item) =>
                 item.id === editingCase.id
-                  ? {
-                      ...item,
-                      name,
-                      service,
-                      description,
-                      image,
-                      isPublic,
-                      isSearchBlocked,
-                    }
+                  ? resolveCompanyContent(
+                      { ...item, name, service, description, image, isPublic, isSearchBlocked },
+                      CONTENT_SITE.id,
+                    )
                   : item,
               )
             : items.filter((item) => item.id !== editingCase.id),
@@ -3802,6 +3806,11 @@ function App() {
                       required
                     />
                   </label>
+                  <CompanyContentPreview
+                    name={companyNameInput}
+                    service={companyServiceInput}
+                    description={companyDescriptionInput}
+                  />
                   <fieldset className="admin-visibility-options" disabled={companyUploadBusy}>
                     <legend>게시물 노출 설정</legend>
                     <label>
