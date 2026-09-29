@@ -51,6 +51,7 @@ import {
   getContentSite,
   resolveCompanyContent,
 } from '../shared/company-content.js'
+import { DEFAULT_SEO_KEYWORDS, SEO_META_BY_ROUTE } from '../shared/page-meta.js'
 import './App.css'
 
 type PageRoute = 'home' | 'lawyers' | 'companies' | 'admin'
@@ -244,7 +245,7 @@ const ROUTE_PATHS: Record<PageRoute, string> = {
 }
 
 const CONTENT_SITE = getContentSite({
-  hostname: window.location.hostname,
+  hostname: typeof window === 'undefined' ? '' : window.location.hostname,
   siteId: import.meta.env.VITE_SITE_ID,
   siteUrl: import.meta.env.VITE_SITE_URL,
 })
@@ -252,16 +253,7 @@ const SITE_BASE_URL = CONTENT_SITE.url
 const SEARCH_RESULT_SITE_NAME = '법무법인 나란'
 const SEARCH_RESULT_SECTION_NAME = '핀테크 전문'
 
-const DEFAULT_SEO_KEYWORDS = [
-  '법무법인 나란',
-  '투자사기 변호사',
-  '코인사기 변호사',
-  '금융사기',
-  '로맨스스캠',
-  '부업사기',
-  '피해회복',
-  '무료상담',
-].join(', ')
+
 
 const NAVER_TRACKING_KEYWORD_PARAMS = [
   'n_keyword',
@@ -342,33 +334,7 @@ const getTrackableQueryString = (search: string, hash: string): string => {
   return queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
 }
 
-const SEO_META_BY_ROUTE: Record<PageRoute, SeoMeta> = {
-  home: {
-    title: '법무법인 나란 | 금융사기 피해회복 상담',
-    description:
-      '법무법인 나란은 투자사기, 코인사기, 로맨스스캠, 부업사기 등 금융사기 피해회복 상담을 신속하게 지원합니다.',
-    keywords: DEFAULT_SEO_KEYWORDS,
-    path: '/',
-  },
-  lawyers: {
-    title: '변호사 소개 | 법무법인 나란',
-    description: '법무법인 나란의 형사, 부동산, 금융사기 피해회복 분야 변호사 프로필과 주요 경력을 확인하세요.',
-    keywords: `법무법인 나란 변호사, 서지원 변호사, 최지연 변호사, 정이든 변호사, ${DEFAULT_SEO_KEYWORDS}`,
-    path: '/lawyers',
-  },
-  companies: {
-    title: '사기업체 게시판 | 법무법인 나란',
-    description: '투자사기, 부업사기, 로맨스스캠 등 실제 사기업체 사례를 게시판 형식으로 확인하고 피해회복 상담을 신청하세요.',
-    keywords: `사기업체 게시판, 사기업체 사례 게시판, 사기 업체 게시판, 사기 피해 게시판, 사기업체 목록, 사기 피해 사례, 피해회복 상담, ${DEFAULT_SEO_KEYWORDS}`,
-    path: '/companies',
-  },
-  admin: {
-    title: '관리자 페이지 | 법무법인 나란',
-    description: '법무법인 나란 관리자 전용 페이지입니다.',
-    keywords: '법무법인 나란 관리자',
-    path: '/admin',
-  },
-}
+
 
 const toAbsoluteSiteUrl = (path: string): string => {
   try {
@@ -695,6 +661,7 @@ const getCompaniesPagePath = (page: number, searchQuery = ''): string => {
 }
 
 const getRequestedCompanyPage = (): number => {
+  if (typeof window === 'undefined') return 1
   const rawPage = new URLSearchParams(window.location.search).get('page')
 
   if (!rawPage || !/^\d+$/.test(rawPage)) {
@@ -706,7 +673,8 @@ const getRequestedCompanyPage = (): number => {
 }
 
 const getRequestedCompanySearchQuery = (): string =>
-  (new URLSearchParams(window.location.search).get('q') ?? '').trim().slice(0, COMPANY_SEARCH_MAX_LENGTH)
+  (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q') ?? '')
+    .trim().slice(0, COMPANY_SEARCH_MAX_LENGTH)
 
 const isCompanyCase = (value: unknown): value is CompanyCase => {
   if (!value || typeof value !== 'object') {
@@ -720,6 +688,7 @@ const isCompanyCase = (value: unknown): value is CompanyCase => {
 }
 
 const getInitialCompanyPageData = (): CompanyPageBootstrap | null => {
+  if (typeof window === 'undefined') return null
   const data = window.__COMPANY_PAGE_DATA__
 
   if (!data || typeof data !== 'object') {
@@ -1014,6 +983,7 @@ const faqItems = [
       '상담원, 팀장, 재무담당자, 출금담당자처럼 여러 역할을 나누어 연락하는 방식이 사용되기도 합니다. 담당자가 바뀌더라도 모든 대화방과 연락처를 삭제하지 않고 보관하는 것이 좋습니다.',
   },
 ]
+
 const companyPlaceholders = Array.from({ length: 12 })
 
 const lawyerProfiles: LawyerProfile[] = [
@@ -1379,10 +1349,11 @@ const runWithPermissionRetry = async <T,>(params: {
   throw lastError ?? new Error('권한 오류로 처리에 실패했습니다.')
 }
 
-function App() {
-  const [route, setRoute] = useState<PageRoute>(() => resolveRoute(window.location.pathname))
+function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
+  const pathname = typeof window === 'undefined' ? initialPathname : window.location.pathname
+  const [route, setRoute] = useState<PageRoute>(() => resolveRoute(pathname))
   const [selectedCompanyCaseId, setSelectedCompanyCaseId] = useState(() =>
-    getCompanyCaseIdFromPath(window.location.pathname),
+    getCompanyCaseIdFromPath(pathname),
   )
   const rollingTrackRef = useRef<HTMLDivElement | null>(null)
   const rollingImageInputRef = useRef<HTMLInputElement | null>(null)
@@ -1490,11 +1461,11 @@ function App() {
 
   const [powerlinkKeywordInput, setPowerlinkKeywordInput] = useState('')
   const [powerlinkGenerateBusy, setPowerlinkGenerateBusy] = useState(false)
-  const [heroTypedText, setHeroTypedText] = useState('')
+  const [heroTypedText, setHeroTypedText] = useState(import.meta.env.SSR ? HERO_TYPING_TEXT : '')
   const [companiesBannerTypedText, setCompaniesBannerTypedText] = useState('')
-  const [isCompactViewport, setIsCompactViewport] = useState(() => window.matchMedia('(max-width: 900px)').matches)
+  const [isCompactViewport, setIsCompactViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches)
   const [companyDetailStacked, setCompanyDetailStacked] = useState(false)
-  const [heroStatValues, setHeroStatValues] = useState<number[]>(() => HERO_STAT_ITEMS.map(() => 0))
+  const [heroStatValues, setHeroStatValues] = useState<number[]>(() => HERO_STAT_ITEMS.map((item) => import.meta.env.SSR ? item.value : 0))
   const [heroStatsShouldAnimate, setHeroStatsShouldAnimate] = useState(false)
 
   useEffect(() => {
@@ -1511,8 +1482,10 @@ function App() {
     }
   }, [companyImageFile])
 
-  const landingPath = window.location.pathname || '/'
-  const landingSearch = getTrackableQueryString(window.location.search || '', window.location.hash || '')
+  const landingPath = pathname || '/'
+  const landingSearch = typeof window === 'undefined'
+    ? ''
+    : getTrackableQueryString(window.location.search || '', window.location.hash || '')
   const landingToken = useMemo(() => getPowerlinkTokenFromPath(landingPath), [landingPath])
   const trackedNaverKeyword = useMemo(
     () => getNaverTrackedKeywordFromQueryString(landingSearch),
@@ -3524,7 +3497,7 @@ function App() {
   }
 
   return (
-    <div className={`app-shell ${route === 'admin' ? 'app-shell-admin' : ''}`}>
+    <div className={`app-shell ${route === 'admin' ? 'app-shell-admin' : ''}`} data-prerendered={import.meta.env.SSR ? '' : undefined}>
       {route !== 'admin' ? (
         <header className="top-nav">
           <a className="brand" href={getRoutePath('home')} onClick={(event) => handleRouteNavigation(event, 'home')}>
@@ -4444,9 +4417,9 @@ function App() {
         {route === 'lawyers' && (
           <section className="section-wrap lawyers-page">
             <div className="lawyers-page-head reveal-on-scroll">
-              <h2>
+              <h1>
                 실력으로 증명하는 <span>베테랑 전문가 그룹</span>
-              </h2>
+              </h1>
               <p>법무법인 나란의 고객의 피해회복을 최우선하는 든든한 파트너가 되겠습니다.</p>
             </div>
 

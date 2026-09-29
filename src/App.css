@@ -2549,7 +2549,7 @@ main {
   margin-bottom: 22px;
 }
 
-.lawyers-page-head h2 {
+.lawyers-page-head h1 {
   margin: 0;
   color: #1f252d;
   font-size: clamp(40px, 3.4vw, 58px);
@@ -2557,7 +2557,7 @@ main {
   letter-spacing: -0.02em;
 }
 
-.lawyers-page-head h2 span {
+.lawyers-page-head h1 span {
   color: #3d79a6;
 }
 
@@ -3591,7 +3591,7 @@ main {
     margin-bottom: 16px;
   }
 
-  .lawyers-page-head h2 {
+  .lawyers-page-head h1 {
     font-size: clamp(26px, 7vw, 34px);
   }
 
@@ -3973,7 +3973,7 @@ main {
     border-radius: 8px;
   }
 
-  .lawyers-page-head h2 {
+  .lawyers-page-head h1 {
     font-size: clamp(22px, 6.7vw, 28px);
   }
 
@@ -4025,4 +4025,11 @@ main {
   .floating-action-btn {
     animation: none;
   }
+}
+
+/* The initial HTML remains readable before JavaScript mounts the application. */
+[data-prerendered] .reveal-on-scroll {
+  opacity: 1;
+  transform: none;
+  transition: none;
 }

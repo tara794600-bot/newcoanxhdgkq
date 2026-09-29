@@ -3,12 +3,11 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { CONTENT_SITES, matchesCompanySearch, resolveCompanyContent } from '../shared/company-content.js'
+import { getRequestContentSite } from '../server/content-site.js'
 
-const SITE_BASE_URL = (process.env.SITE_URL || process.env.VITE_SITE_URL || 'https://www.naranfintech.com').replace(
-  /\/+$/,
-  '',
-)
-const DEFAULT_IMAGE_URL = `${SITE_BASE_URL}/logo.png`
+const DEFAULT_SITE = getRequestContentSite()
+const SITE_BASE_URL = DEFAULT_SITE.url
 const DESCRIPTION_MAX_LENGTH = 155
 const SEARCH_RESULT_SITE_NAME = '법무법인나란'
 const SEARCH_RESULT_SECTION_NAME = '핀테크전문'
@@ -66,6 +65,8 @@ const getFirebaseApp = () => {
 const getIndexHtml = async () => {
   const apiDir = path.dirname(fileURLToPath(import.meta.url))
   const candidates = [
+    path.join(process.cwd(), 'dist', 'app-shell.html'),
+    path.join(apiDir, '..', 'dist', 'app-shell.html'),
     path.join(process.cwd(), 'dist', 'index.html'),
     path.join(apiDir, '..', 'dist', 'index.html'),
   ]
@@ -126,10 +127,10 @@ const replaceRootContent = (html, content) => {
   const root = `<div id="root">${content}</div>`
 
   if (rootRegex.test(html)) {
-    return html.replace(rootRegex, root)
+    return html.replace(rootRegex, () => root)
   }
 
-  return html.replace('</body>', `  ${root}\n  </body>`)
+  return html.replace('</body>', () => `  ${root}\n  </body>`)
 }
 
 const replaceOrInsertBootstrapData = (html, data) => {
@@ -137,7 +138,7 @@ const replaceOrInsertBootstrapData = (html, data) => {
   const regex = /<script\s+[^>]*id=["']company-page-data["'][^>]*>[\s\S]*?<\/script>/i
 
   if (regex.test(html)) {
-    return html.replace(regex, tag)
+    return html.replace(regex, () => tag)
   }
 
   return upsertHeadTag(html, tag)
@@ -211,7 +212,7 @@ const getPaginationItems = (totalPages, currentPage) => {
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const toAbsoluteUrl = (value) => {
+const toAbsoluteUrl = (value, baseUrl = SITE_BASE_URL) => {
   const trimmedValue = toTrimmedString(value)
 
   if (!trimmedValue) {
@@ -219,7 +220,7 @@ const toAbsoluteUrl = (value) => {
   }
 
   try {
-    return new URL(trimmedValue, `${SITE_BASE_URL}/`).toString()
+    return new URL(trimmedValue, `${baseUrl}/`).toString()
   } catch {
     return trimmedValue
   }
@@ -230,7 +231,7 @@ const upsertHeadTag = (html, tag) => {
     return `${html}\n${tag}`
   }
 
-  return html.replace('</head>', `    ${tag}\n  </head>`)
+  return html.replace('</head>', () => `    ${tag}\n  </head>`)
 }
 
 const replaceOrInsertMeta = (html, attribute, key, content) => {
@@ -238,7 +239,7 @@ const replaceOrInsertMeta = (html, attribute, key, content) => {
   const regex = new RegExp(`<meta\\s+[^>]*${attribute}=["']${escapeRegExp(key)}["'][^>]*>`, 'i')
 
   if (regex.test(html)) {
-    return html.replace(regex, tag)
+    return html.replace(regex, () => tag)
   }
 
   return upsertHeadTag(html, tag)
@@ -249,7 +250,7 @@ const replaceOrInsertCanonical = (html, href) => {
   const regex = /<link\s+[^>]*rel=["']canonical["'][^>]*>/i
 
   if (regex.test(html)) {
-    return html.replace(regex, tag)
+    return html.replace(regex, () => tag)
   }
 
   return upsertHeadTag(html, tag)
@@ -261,7 +262,7 @@ const replaceOrInsertRouteStructuredData = (html, data) => {
   const regex = /<script\s+[^>]*id=["']route-structured-data["'][^>]*>[\s\S]*?<\/script>/i
 
   if (regex.test(html)) {
-    return html.replace(regex, tag)
+    return html.replace(regex, () => tag)
   }
 
   return upsertHeadTag(html, tag)
@@ -293,20 +294,20 @@ const toIsoDateTime = (value) => {
   return ''
 }
 
-const getCompaniesBreadcrumbStructuredData = (canonicalUrl, companyCase = null) => ({
+const getCompaniesBreadcrumbStructuredData = (canonicalUrl, companyCase = null, baseUrl = SITE_BASE_URL) => ({
   '@type': 'BreadcrumbList',
   itemListElement: [
     {
       '@type': 'ListItem',
       position: 1,
       name: SEARCH_RESULT_SITE_NAME,
-      item: `${SITE_BASE_URL}/`,
+      item: `${baseUrl}/`,
     },
     {
       '@type': 'ListItem',
       position: 2,
       name: SEARCH_RESULT_SECTION_NAME,
-      item: `${SITE_BASE_URL}${COMPANIES_PAGE_PATH}`,
+      item: `${baseUrl}${COMPANIES_PAGE_PATH}`,
     },
     ...(companyCase
       ? [
@@ -321,7 +322,7 @@ const getCompaniesBreadcrumbStructuredData = (canonicalUrl, companyCase = null) 
   ],
 })
 
-const mapCompanyCase = (snapshot) => {
+const mapCompanyCase = (snapshot, site) => {
   const data = snapshot.data() ?? {}
   const name = toTrimmedString(data.name)
   const service = toTrimmedString(data.service)
@@ -337,7 +338,7 @@ const mapCompanyCase = (snapshot) => {
     name,
     service,
     description,
-    image: image || DEFAULT_IMAGE_URL,
+    image: image || `${site.url}/logo.png`,
     isPublic: data.isPublic !== false,
     isSearchBlocked: data.isSearchBlocked === true,
     datePublished: toIsoDateTime(data.createdAt),
@@ -356,7 +357,7 @@ export const shuffleCompanyCases = (items, random = Math.random) => {
   return shuffledItems
 }
 
-const getCompanyCase = async (id) => {
+const getCompanyCase = async (id, site) => {
   const app = getFirebaseApp()
   const snapshot = await getFirestore(app).collection('companyCases').doc(id).get()
 
@@ -364,25 +365,18 @@ const getCompanyCase = async (id) => {
     return null
   }
 
-  return mapCompanyCase(snapshot)
+  return mapCompanyCase(snapshot, site)
 }
 
-const getCompaniesPage = async ({ page, searchQuery }) => {
+const getCompaniesPage = async ({ page, searchQuery }, site) => {
   const app = getFirebaseApp()
   const collectionRef = getFirestore(app).collection('companyCases')
   const snapshot = await collectionRef.get()
-  const normalizedSearchQuery = searchQuery.toLocaleLowerCase('ko-KR')
   const matchedItems = snapshot.docs
-    .map(mapCompanyCase)
+    .map((item) => mapCompanyCase(item, site))
     .filter(Boolean)
     .filter((item) => item.isPublic !== false && item.isSearchBlocked !== true)
-    .filter(
-      (item) =>
-        !normalizedSearchQuery ||
-        [item.name, item.service, item.description].some((value) =>
-          value.toLocaleLowerCase('ko-KR').includes(normalizedSearchQuery),
-        ),
-    )
+    .filter((item) => matchesCompanySearch(item, searchQuery, site.id))
   const shuffledItems = shuffleCompanyCases(matchedItems)
   const totalCount = shuffledItems.length
   const startIndex = (page - 1) * COMPANY_CASES_PER_PAGE
@@ -434,7 +428,7 @@ const renderPagination = ({ page, totalPages, searchQuery }) => {
   </nav>`
 }
 
-const renderCompaniesServerContent = (pageData) => {
+const renderCompaniesServerContent = (pageData, baseUrl) => {
   const cards = pageData.items.length
     ? pageData.items
         .map(
@@ -442,7 +436,7 @@ const renderCompaniesServerContent = (pageData) => {
             `/companies/${encodeURIComponent(item.id)}`,
           )}">
             <div class="company-card-thumb-wrap">
-              <img src="${escapeHtml(toAbsoluteUrl(item.image) || DEFAULT_IMAGE_URL)}" alt="${escapeHtml(
+              <img src="${escapeHtml(toAbsoluteUrl(item.image, baseUrl) || `${baseUrl}/logo.png`)}" alt="${escapeHtml(
                 `${item.name} 이미지`,
               )}" class="company-card-image" loading="lazy" />
             </div>
@@ -481,8 +475,8 @@ const renderCompaniesServerContent = (pageData) => {
   </div>`
 }
 
-const renderCompanyCaseServerContent = (companyCase) => {
-  const imageUrl = toAbsoluteUrl(companyCase.image) || DEFAULT_IMAGE_URL
+const renderCompanyCaseServerContent = (companyCase, baseUrl) => {
+  const imageUrl = toAbsoluteUrl(companyCase.image, baseUrl) || `${baseUrl}/logo.png`
 
   return `<div class="app-shell">
     <main>
@@ -527,10 +521,13 @@ const renderPhoneCompanyCaseServerContent = (companyCase) => `<div class="app-sh
   </main>
 </div>`
 
-export const buildCompaniesPageHtml = (html, pageData) => {
+export const buildCompaniesPageHtml = (html, pageData, site = DEFAULT_SITE) => {
+  html = html.replaceAll(CONTENT_SITES[0].url, site.url)
+  const SITE_BASE_URL = site.url
+  const DEFAULT_IMAGE_URL = `${SITE_BASE_URL}/logo.png`
   const renderPageData = {
     ...pageData,
-    items: pageData.items.filter(
+    items: pageData.items.map((item) => resolveCompanyContent(item, site.id)).filter(
       (item) => item.isPublic !== false && item.isSearchBlocked !== true,
     ),
   }
@@ -543,7 +540,7 @@ export const buildCompaniesPageHtml = (html, pageData) => {
       ? `사기업체 게시판 ${renderPageData.page}페이지 | 법무법인 나란`
       : COMPANIES_PAGE_TITLE
 
-  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
+  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', COMPANIES_PAGE_DESCRIPTION)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'keywords', COMPANIES_PAGE_KEYWORDS)
   nextHtml = replaceOrInsertMeta(
@@ -590,7 +587,7 @@ export const buildCompaniesPageHtml = (html, pageData) => {
           })),
         },
       },
-      getCompaniesBreadcrumbStructuredData(canonicalUrl),
+      getCompaniesBreadcrumbStructuredData(canonicalUrl, null, SITE_BASE_URL),
     ],
   })
   nextHtml = replaceOrInsertBootstrapData(nextHtml, {
@@ -601,16 +598,20 @@ export const buildCompaniesPageHtml = (html, pageData) => {
     totalCount: renderPageData.totalCount,
     totalPages: renderPageData.totalPages,
   })
-  nextHtml = replaceRootContent(nextHtml, renderCompaniesServerContent(renderPageData))
+  nextHtml = replaceRootContent(nextHtml, renderCompaniesServerContent(renderPageData, SITE_BASE_URL))
   nextHtml = removeHomepageOnlyStructuredData(nextHtml)
 
   return nextHtml
 }
 
-export const buildCompanyCasePageHtml = (html, companyCase) => {
+export const buildCompanyCasePageHtml = (html, rawCompanyCase, site = DEFAULT_SITE) => {
+  html = html.replaceAll(CONTENT_SITES[0].url, site.url)
+  const companyCase = resolveCompanyContent(rawCompanyCase, site.id)
+  const SITE_BASE_URL = site.url
+  const DEFAULT_IMAGE_URL = `${SITE_BASE_URL}/logo.png`
   const path = `/companies/${encodeURIComponent(companyCase.id)}`
   const canonicalUrl = `${SITE_BASE_URL}${path}`
-  const imageUrl = toAbsoluteUrl(companyCase.image) || DEFAULT_IMAGE_URL
+  const imageUrl = toAbsoluteUrl(companyCase.image, SITE_BASE_URL) || DEFAULT_IMAGE_URL
   const title = `${companyCase.name} | 사기업체 게시판 | 법무법인 나란`
   const description = getDescriptionExcerpt(
     companyCase.description,
@@ -618,7 +619,7 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
   )
   const keywords = `${companyCase.name}, ${companyCase.service}, ${companyCase.name} 사기, 사기업체 게시판, 사기 피해 사례, 피해회복 상담, 법무법인 나란`
 
-  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
+  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', description)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'keywords', keywords)
   nextHtml = replaceOrInsertMeta(
@@ -668,7 +669,7 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
         },
         about: [companyCase.name, companyCase.service, '사기 피해 사례', '피해회복 상담'],
       },
-      getCompaniesBreadcrumbStructuredData(canonicalUrl, companyCase),
+      getCompaniesBreadcrumbStructuredData(canonicalUrl, companyCase, SITE_BASE_URL),
     ],
   })
 
@@ -680,19 +681,21 @@ export const buildCompanyCasePageHtml = (html, companyCase) => {
     nextHtml,
     companyCase.isPublic === false
       ? renderPhoneCompanyCaseServerContent(companyCase)
-      : renderCompanyCaseServerContent(companyCase),
+      : renderCompanyCaseServerContent(companyCase, SITE_BASE_URL),
   )
   nextHtml = removeHomepageOnlyStructuredData(nextHtml)
 
   return nextHtml
 }
 
-export const buildNotFoundPageHtml = (html, requestedPath) => {
+export const buildNotFoundPageHtml = (html, requestedPath, site = DEFAULT_SITE) => {
+  html = html.replaceAll(CONTENT_SITES[0].url, site.url)
+  const SITE_BASE_URL = site.url
   const canonicalUrl = `${SITE_BASE_URL}${requestedPath}`
   const title = '페이지를 찾을 수 없습니다 | 법무법인 나란'
   const content = `<div class="app-shell"><main><section class="section-wrap companies-grid-wrap"><h1>페이지를 찾을 수 없습니다.</h1><p class="company-detail-deleted-message">현재 페이지는 삭제되었습니다.<br />해당 내용으로 사칭 피해를 보신 분들은 즉시 1551-7203으로 연락 바랍니다.</p><a class="company-detail-back" href="/companies">사기업체 게시판으로 이동</a></section></main></div>`
 
-  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
+  let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', '요청한 페이지를 찾을 수 없습니다.')
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'robots', 'noindex,follow')
   nextHtml = replaceOrInsertCanonical(nextHtml, canonicalUrl)
@@ -769,22 +772,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    const site = getRequestContentSite(req)
     const id = getRequestCompanyCaseId(req)
     const indexHtml = await getIndexHtml()
 
     if (id) {
-      const companyCase = await getCompanyCase(id)
+      const companyCase = await getCompanyCase(id, site)
 
       if (!companyCase) {
         const requestedPath = `/companies/${encodeURIComponent(id)}`
-        return sendHtml(req, res, 404, buildNotFoundPageHtml(indexHtml, requestedPath), 'no-store')
+        return sendHtml(req, res, 404, buildNotFoundPageHtml(indexHtml, requestedPath, site), 'no-store')
       }
 
       return sendHtml(
         req,
         res,
         200,
-        buildCompanyCasePageHtml(indexHtml, companyCase),
+        buildCompanyCasePageHtml(indexHtml, companyCase, site),
         'public, s-maxage=300, stale-while-revalidate=3600',
       )
     }
@@ -793,17 +797,17 @@ export default async function handler(req, res) {
     const searchQuery = getRequestQueryValue(req, 'q').slice(0, COMPANY_SEARCH_MAX_LENGTH)
 
     if (!requestedPage.valid) {
-      return sendHtml(req, res, 404, buildNotFoundPageHtml(indexHtml, COMPANIES_PAGE_PATH), 'no-store')
+      return sendHtml(req, res, 404, buildNotFoundPageHtml(indexHtml, COMPANIES_PAGE_PATH, site), 'no-store')
     }
 
-    const pageData = await getCompaniesPage({ page: requestedPage.page, searchQuery })
+    const pageData = await getCompaniesPage({ page: requestedPage.page, searchQuery }, site)
 
     if (pageData.totalCount > 0 && pageData.page > pageData.totalPages) {
       return sendHtml(
         req,
         res,
         404,
-        buildNotFoundPageHtml(indexHtml, getCompaniesPagePath(pageData.page, searchQuery)),
+        buildNotFoundPageHtml(indexHtml, getCompaniesPagePath(pageData.page, searchQuery), site),
         'no-store',
       )
     }
@@ -812,7 +816,7 @@ export default async function handler(req, res) {
       req,
       res,
       200,
-      buildCompaniesPageHtml(indexHtml, pageData),
+      buildCompaniesPageHtml(indexHtml, pageData, site),
       'private, no-store, max-age=0, must-revalidate',
     )
   } catch (error) {

@@ -1,5 +1,16 @@
 # React + TypeScript + Vite
 
+## 홈페이지와 변호사 소개의 초기 HTML
+
+`npm run build`는 실제 `App` 컴포넌트로 홈페이지(`/`)와 변호사 소개(`/lawyers`)를 미리 렌더링합니다. 제목, 사건 유형, 변호사 경력, FAQ, 내부 링크가 JavaScript 실행 전의 HTML에도 포함됩니다. 문구와 화면은 `src/App.tsx`에서 함께 관리하며, 변경 후 다시 빌드하면 초기 HTML도 갱신됩니다.
+
+- `dist/prerender/{site1,site2,site3}/{home,lawyers}.html`: 도메인별 메타데이터를 포함하는 초기 HTML.
+- `api/site-page.js`: 접속 도메인에 맞는 HTML 제공. Vercel의 `/`, `/lawyers` rewrite와 `includeFiles` 설정을 함께 배포해야 합니다.
+- `dist/index.html`, `dist/lawyers.html`: 기본 도메인의 정적 결과물.
+- `dist/app-shell.html`: 기존 업체 목록·상세 렌더러가 사용하는 빈 템플릿. 홈페이지 본문이 업체 상세에 섞이지 않도록 별도로 유지합니다.
+- 브라우저가 로드되면 기존 React 앱이 상호작용을 담당합니다. 초기 HTML의 본문은 JavaScript가 없어도 표시되며, 공개 페이지 사전 렌더링에는 Firebase 접속이 필요하지 않습니다.
+- 검증: `npm run build`, `npm run lint`, `npm run verify:seo`.
+
 ## 세 홈페이지 게시글 자동 변환
 
 관리자에서 사기업체 **업체명·유형·설명을 한 번만 작성**하면 각 홈페이지에서 서로 다른 제목과 설명을 자동으로 표시합니다. 작성·수정 폼의 **세 홈페이지 자동 변환 미리보기**에서 결과를 확인할 수 있습니다.
