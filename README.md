@@ -1,8 +1,16 @@
 # React + TypeScript + Vite
 
+## 단일 사이트 운영
+
+이 프로젝트는 `https://www.naranfintech.com` 전용으로 배포합니다. 다른 홈페이지는 별도 서버/프로젝트에서 운영하며, 이 코드에서는 요청 도메인에 따른 사이트 선택이나 게시글 자동 변환을 하지 않습니다.
+
+- 프런트엔드와 서버의 대표 주소는 `shared/site.js`의 `SITE_BASE_URL`을 사용합니다. 초기 HTML, 게시글 SEO, RSS, 사이트맵도 같은 주소를 사용합니다.
+- 관리자에서 입력한 업체명과 설명을 게시판·상세·RSS에 그대로 표시합니다. Firestore 저장 구조는 그대로 사용합니다.
+- `VITE_SITE_ID`, `SITE_URL`, `VITE_SITE_URL`을 통한 사이트 선택은 더 이상 사용하지 않습니다.
+
 ## 최신 게시글 RSS
 
-`/rss.xml`은 `api/rss.js`에서 Firestore의 최근 게시글 최대 500개를 작성일 내림차순으로 읽어 생성합니다. 제목, 상세 URL, 전체 본문, 원래 발행일을 제공하며 `lastBuildDate`는 포함된 글의 최신 작성·수정 시각을 사용합니다. 각 도메인의 상세 페이지와 같은 제목·본문·주소를 적용합니다.
+`/rss.xml`은 `api/rss.js`에서 Firestore의 최근 게시글 최대 500개를 작성일 내림차순으로 읽어 생성합니다. 제목, 상세 URL, 전체 본문, 원래 발행일을 제공하며 `lastBuildDate`는 포함된 글의 최신 작성·수정 시각을 사용합니다. 상세 페이지와 같은 제목·본문·주소를 적용합니다.
 
 - `검색차단` 글은 외부 상세 페이지가 공개되어 있으므로 RSS에 포함합니다. `전화연결` 글과 필수 내용·발행일이 없는 글은 제외합니다.
 - 기존 사이트맵과 같은 `FIREBASE_SERVICE_ACCOUNT_JSON` 또는 `GOOGLE_SERVICE_ACCOUNT_JSON` 환경변수를 사용합니다. DB를 수정하지 않습니다.
@@ -14,32 +22,12 @@
 
 `npm run build`는 실제 `App` 컴포넌트로 홈페이지(`/`)와 변호사 소개(`/lawyers`)를 미리 렌더링합니다. 제목, 사건 유형, 변호사 경력, FAQ, 내부 링크가 JavaScript 실행 전의 HTML에도 포함됩니다. 문구와 화면은 `src/App.tsx`에서 함께 관리하며, 변경 후 다시 빌드하면 초기 HTML도 갱신됩니다.
 
-- `dist/prerender/{site1,site2,site3}/{home,lawyers}.html`: 도메인별 메타데이터를 포함하는 초기 HTML.
-- `api/site-page.js`: 접속 도메인에 맞는 HTML 제공. Vercel의 `/`, `/lawyers` rewrite와 `includeFiles` 설정을 함께 배포해야 합니다.
-- `dist/index.html`, `dist/lawyers.html`: 기본 도메인의 정적 결과물.
+- `dist/prerender/{home,lawyers}.html`: 현재 사이트의 초기 HTML.
+- `api/site-page.js`: 홈페이지와 변호사 소개의 초기 HTML 제공. Vercel의 `/`, `/lawyers` rewrite와 `includeFiles` 설정을 함께 배포해야 합니다.
+- `dist/index.html`, `dist/lawyers.html`: 같은 페이지의 정적 결과물.
 - `dist/app-shell.html`: 기존 업체 목록·상세 렌더러가 사용하는 빈 템플릿. 홈페이지 본문이 업체 상세에 섞이지 않도록 별도로 유지합니다.
 - 브라우저가 로드되면 기존 React 앱이 상호작용을 담당합니다. 초기 HTML의 본문은 JavaScript가 없어도 표시되며, 공개 페이지 사전 렌더링에는 Firebase 접속이 필요하지 않습니다.
 - 검증: `npm run build`, `npm run lint`, `npm run verify:seo`.
-
-## 세 홈페이지 게시글 자동 변환
-
-관리자에서 사기업체 **업체명·유형·설명을 한 번만 작성**하면 각 홈페이지에서 서로 다른 제목과 설명을 자동으로 표시합니다. 작성·수정 폼의 **세 홈페이지 자동 변환 미리보기**에서 결과를 확인할 수 있습니다.
-
-| 도메인 | 자동 적용 방식 |
-| --- | --- |
-| `www.naranfintech.com` | 원래 업체명과 설명 |
-| `www.naranfintechnews.co.kr` | `업체명 \| 유형 사례 정리` 제목과 사례 안내 문구 + 원문 설명 |
-| `www.xn--naranfintech-t458b147kl8ppf0a.kr` | `업체명 피해 관련 확인 사항` 제목과 유형 안내 + 원문 설명 |
-
-변환은 외부 AI 호출 없이 고정 문구 규칙으로 처리합니다. 원문을 임의로 요약하거나 사실관계를 바꾸지 않습니다. 문구 규칙과 도메인은 `shared/company-content.js`에서 관리합니다.
-
-- Firestore `companyCases`의 기존 필드에 원문 한 벌만 저장합니다. DB 필드나 보안 규칙 변경이 필요 없으며 기존 글에도 자동 적용됩니다.
-- 서버에서는 요청의 Host, 브라우저에서는 접속 도메인으로 구분합니다. 게시판·상세 페이지·파워링크 관련 글과 게시글 title/description, OG, Twitter, 구조화 데이터에 적용됩니다.
-- 글을 수정하면 세 사이트가 같은 원문에서 다시 변환하므로 안내 문구가 중복 누적되지 않습니다. 서버 상세 페이지는 기존 캐시 설정에 따라 갱신이 지연될 수 있습니다.
-- 세 도메인이 하나의 배포에 연결되어 있으면 이 코드를 한 번 배포합니다. **홈페이지가 별도 프로젝트로 배포되어 있으면 각 프로젝트에도 이 읽기/렌더링 코드를 적용해야 합니다.** DB만 공유하고 예전 코드로 읽는 홈페이지에는 변환이 적용되지 않습니다.
-- 로컬/미리보기 도메인에서는 `VITE_SITE_ID=site1`, `site2`, `site3` 중 하나로 테스트할 수 있습니다. 운영 도메인은 자동 인식합니다.
-- 확인: `npm run build`, `npm run lint`, `npm run verify:seo`.
-
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { access, readFile } from 'node:fs/promises'
 import { createRssHandler, getRssItems, mapRssItem, renderRss, RSS_ITEM_LIMIT } from '../api/rss.js'
-import { CONTENT_SITES, resolveCompanyContent } from '../shared/company-content.js'
+import { SITE_BASE_URL } from '../shared/site.js'
 
 const article = {
   name: '업체 & <샘플>', service: '투자사기',
@@ -18,11 +18,12 @@ const response = () => ({
   end(body = '') { this.body = body; return this },
 })
 
-for (const site of CONTENT_SITES) {
-  const item = mapRssItem(doc('new article', article), site)
-  assert.equal(item.description, resolveCompanyContent(article, site.id).description)
-  assert.equal(item.url, `${site.url}/companies/new%20article`)
-  const xml = renderRss([item], site)
+for (const host of [new URL(SITE_BASE_URL).host, 'unrelated.example']) {
+  const item = mapRssItem(doc('new article', article))
+  assert.equal(item.title, article.name)
+  assert.equal(item.description, article.description)
+  assert.equal(item.url, `${SITE_BASE_URL}/companies/new%20article`)
+  const xml = renderRss([item])
   assert.match(xml, /<rss version="2.0"/)
   assert.match(xml, /<pubDate>Tue, 06 Oct 2026 01:27:04 GMT<\/pubDate>/)
   assert.match(xml, /<lastBuildDate>Wed, 07 Oct 2026 02:00:00 GMT<\/lastBuildDate>/)
@@ -32,16 +33,12 @@ for (const site of CONTENT_SITES) {
   assert.ok(xml.includes('😀'))
   assert.ok(!xml.includes('<script>'))
   assert.ok(xml.includes(`<guid isPermaLink="true">${item.url}</guid>`))
-  assert.ok(xml.includes(`href="${site.url}/rss.xml"`))
-  if (site.id !== 'site1') assert.ok(!xml.includes(CONTENT_SITES[0].url))
+  assert.ok(xml.includes(`href="${SITE_BASE_URL}/rss.xml"`))
 
-  const handler = createRssHandler(async (requestedSite) => {
-    assert.equal(requestedSite.id, site.id)
-    return [item]
-  })
+  const handler = createRssHandler(async () => [item])
   for (const method of ['GET', 'HEAD']) {
     const res = response()
-    await handler({ method, headers: { host: new URL(site.url).host } }, res)
+    await handler({ method, headers: { host } }, res)
     assert.equal(res.statusCode, 200)
     assert.equal(res.headers['Content-Type'], 'application/rss+xml; charset=utf-8')
     assert.match(res.headers['Cache-Control'], /s-maxage=300/)
@@ -51,7 +48,7 @@ for (const site of CONTENT_SITES) {
 
 assert.equal(mapRssItem(doc('phone', { ...article, isPublic: false })), null)
 assert.equal(mapRssItem(doc('missing-body', { ...article, description: '' })), null)
-assert.equal(mapRssItem(doc('missing-name', { ...article, name: '' }), CONTENT_SITES[2]), null)
+assert.equal(mapRssItem(doc('missing-name', { ...article, name: '' })), null)
 assert.equal(mapRssItem(doc('bad-date', { ...article, createdAt: 'not a date' })), null)
 assert.equal(mapRssItem(doc('no-date', { ...article, createdAt: undefined })), null)
 const timestamp = { toDate: () => new Date(article.createdAt) }
@@ -82,7 +79,7 @@ const collection = {
     return makeQuery(0, documents.length)
   },
 }
-const items = await getRssItems(CONTENT_SITES[0], collection)
+const items = await getRssItems(collection)
 assert.equal(items.length, RSS_ITEM_LIMIT)
 assert.equal(reads, 3)
 assert.ok(items[0].url.endsWith('/post-250'))
@@ -115,4 +112,4 @@ assert.ok(feedRoute >= 0 && feedRoute < config.rewrites.findIndex((rule) => rule
 for (const filename of ['public/rss.xml', 'dist/rss.xml']) {
   await assert.rejects(access(filename), { code: 'ENOENT' })
 }
-console.log('RSS verified: latest 500, full text, visibility, dates, XML escaping, 3 domains, routing, GET/HEAD/405/503.')
+console.log('RSS verified: latest 500, full text, visibility, dates, XML escaping, single-site URLs, routing, GET/HEAD/405/503.')

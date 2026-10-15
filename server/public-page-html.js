@@ -1,4 +1,4 @@
-import { CONTENT_SITES } from '../shared/company-content.js'
+import { SITE_BASE_URL } from '../shared/site.js'
 import { SEO_META_BY_ROUTE } from '../shared/page-meta.js'
 
 const escapeHtml = (value) => String(value)
@@ -8,14 +8,13 @@ const escapeHtml = (value) => String(value)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;')
 
-export const buildPublicPageHtml = (template, markup, route, site) => {
+export const buildPublicPageHtml = (template, markup, route) => {
   if (route !== 'home' && route !== 'lawyers') throw new Error('Unsupported public page')
   if (!template.includes('<div id="root"></div>')) throw new Error('Expected an empty app shell')
 
   const meta = SEO_META_BY_ROUTE[route]
-  const canonical = `${site.url}${meta.path}`
-  let html = template.replaceAll(CONTENT_SITES[0].url, site.url)
-  html = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(meta.title)}</title>`)
+  const canonical = `${SITE_BASE_URL}${meta.path}`
+  let html = template.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(meta.title)}</title>`)
 
   const setMeta = (attribute, key, value) => {
     const tag = `<meta ${attribute}="${key}" content="${escapeHtml(value)}" />`
@@ -32,7 +31,7 @@ export const buildPublicPageHtml = (template, markup, route, site) => {
   setMeta('property', 'og:url', canonical)
   setMeta('name', 'twitter:title', meta.title)
   setMeta('name', 'twitter:description', meta.description)
-  setMeta('name', 'twitter:image', `${site.url}/logo.png`)
+  setMeta('name', 'twitter:image', `${SITE_BASE_URL}/logo.png`)
   html = html.replace(/<link\s+[^>]*rel=["']canonical["'][^>]*>/i,
     () => `<link rel="canonical" href="${escapeHtml(canonical)}" />`)
   const structuredData = {
@@ -42,8 +41,8 @@ export const buildPublicPageHtml = (template, markup, route, site) => {
     description: meta.description,
     url: canonical,
     inLanguage: 'ko-KR',
-    isPartOf: { '@id': `${site.url}/#website` },
-    about: { '@id': `${site.url}/#legalservice` },
+    isPartOf: { '@id': `${SITE_BASE_URL}/#website` },
+    about: { '@id': `${SITE_BASE_URL}/#legalservice` },
   }
   html = html.replace('</head>', () =>
     `<script id="public-page-structured-data" type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</script>\n</head>`)

@@ -1,12 +1,11 @@
 import { cert, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
-import { resolveCompanyContent } from '../shared/company-content.js'
+import { normalizeCompanyContent } from '../shared/company-content.js'
 import { SEO_META_BY_ROUTE } from '../shared/page-meta.js'
-import { getRequestContentSite } from '../server/content-site.js'
+import { SITE_BASE_URL } from '../shared/site.js'
 
 export const RSS_ITEM_LIMIT = 500
 const QUERY_BATCH_SIZE = 250
-const DEFAULT_SITE = getRequestContentSite()
 
 const getCompanyCollection = () => {
   let app = getApps()[0]
@@ -42,7 +41,7 @@ const escapeXml = (value) => String(value)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&apos;')
 
-export const mapRssItem = (snapshot, site = DEFAULT_SITE) => {
+export const mapRssItem = (snapshot) => {
   const data = snapshot.data() ?? {}
   const hasText = (value) => typeof value === 'string' && Boolean(value.trim())
   const published = toDate(data.createdAt)
@@ -51,19 +50,19 @@ export const mapRssItem = (snapshot, site = DEFAULT_SITE) => {
   if (data.isPublic === false || !published || ![data.name, data.service, data.description].every(hasText)) {
     return null
   }
-  const content = resolveCompanyContent(data, site.id)
+  const content = normalizeCompanyContent(data)
   const modified = toDate(data.updatedAt)
   return {
     title: content.name,
     description: content.description,
     category: content.service,
-    url: `${site.url}/companies/${encodeURIComponent(snapshot.id)}`,
+    url: `${SITE_BASE_URL}/companies/${encodeURIComponent(snapshot.id)}`,
     published,
     modified: modified && modified > published ? modified : published,
   }
 }
 
-export const getRssItems = async (site, collection = getCompanyCollection()) => {
+export const getRssItems = async (collection = getCompanyCollection()) => {
   const items = []
   const query = collection.orderBy('createdAt', 'desc').limit(QUERY_BATCH_SIZE)
   let cursor = null
@@ -71,7 +70,7 @@ export const getRssItems = async (site, collection = getCompanyCollection()) => 
   while (items.length < RSS_ITEM_LIMIT) {
     const snapshot = await (cursor ? query.startAfter(cursor) : query).get()
     for (const doc of snapshot.docs) {
-      const item = mapRssItem(doc, site)
+      const item = mapRssItem(doc)
       if (item) items.push(item)
       if (items.length === RSS_ITEM_LIMIT) break
     }
@@ -96,7 +95,7 @@ const renderItem = (item) => {
     </item>`
 }
 
-export const renderRss = (items, site = DEFAULT_SITE) => {
+export const renderRss = (items) => {
   const latestUpdate = items.reduce(
     (latest, item) => !latest || item.modified > latest ? item.modified : latest,
     null,
@@ -105,8 +104,8 @@ export const renderRss = (items, site = DEFAULT_SITE) => {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>${escapeXml(SEO_META_BY_ROUTE.companies.title)}</title>
-    <link>${escapeXml(site.url)}/companies</link>
-    <atom:link href="${escapeXml(site.url)}/rss.xml" rel="self" type="application/rss+xml" />
+    <link>${escapeXml(SITE_BASE_URL)}/companies</link>
+    <atom:link href="${escapeXml(SITE_BASE_URL)}/rss.xml" rel="self" type="application/rss+xml" />
     <description>${escapeXml(SEO_META_BY_ROUTE.companies.description)}</description>
     <language>ko-KR</language>${latestUpdate ? `\n    <lastBuildDate>${latestUpdate.toUTCString()}</lastBuildDate>` : ''}
     <ttl>5</ttl>
@@ -122,9 +121,8 @@ export const createRssHandler = (loadItems = getRssItems) => async (req, res) =>
     return res.status(405).end('Method Not Allowed')
   }
   try {
-    const site = getRequestContentSite(req)
-    const items = await loadItems(site)
-    const rss = renderRss(items, site)
+    const items = await loadItems()
+    const rss = renderRss(items)
     res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8')
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=300, must-revalidate')
     if (req.method === 'HEAD') return res.status(200).end()

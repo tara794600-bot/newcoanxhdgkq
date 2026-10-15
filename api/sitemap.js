@@ -1,9 +1,6 @@
 import { cert, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
-import { resolveCompanyContent } from '../shared/company-content.js'
-import { getRequestContentSite } from '../server/content-site.js'
-
-const DEFAULT_SITE = getRequestContentSite()
+import { SITE_BASE_URL } from '../shared/site.js'
 
 const toTrimmedString = (value) => (typeof value === 'string' ? value.trim() : '')
 
@@ -73,13 +70,13 @@ const toDateString = (value) => {
   return ''
 }
 
-const getCompanyCaseUrls = async (site) => {
+const getCompanyCaseUrls = async () => {
   const app = getFirebaseApp()
   const snapshot = await getFirestore(app).collection('companyCases').get()
 
   return snapshot.docs
     .map((snapshotDoc) => {
-      const data = resolveCompanyContent(snapshotDoc.data() ?? {}, site.id)
+      const data = snapshotDoc.data() ?? {}
       const name = toTrimmedString(data.name)
       const service = toTrimmedString(data.service)
       const description = toTrimmedString(data.description)
@@ -89,7 +86,7 @@ const getCompanyCaseUrls = async (site) => {
       }
 
       return {
-        loc: `${site.url}/companies/${encodeURIComponent(snapshotDoc.id)}`,
+        loc: `${SITE_BASE_URL}/companies/${encodeURIComponent(snapshotDoc.id)}`,
         lastmod: toDateString(data.updatedAt ?? data.createdAt),
       }
     })
@@ -101,8 +98,7 @@ const renderUrl = ({ loc, lastmod }) => `  <url>
     <loc>${escapeXml(loc)}</loc>${lastmod ? `\n    <lastmod>${escapeXml(lastmod)}</lastmod>` : ''}
   </url>`
 
-export const renderSitemap = (companyUrls, site = DEFAULT_SITE) => {
-  const SITE_BASE_URL = site.url
+export const renderSitemap = (companyUrls) => {
   const latestCompanyLastmod = companyUrls.reduce(
     (latest, item) => (item.lastmod && item.lastmod > latest ? item.lastmod : latest),
     '',
@@ -137,10 +133,9 @@ export default async function handler(req, res) {
   }
 
   let companyUrls = []
-  const site = getRequestContentSite(req)
 
   try {
-    companyUrls = await getCompanyCaseUrls(site)
+    companyUrls = await getCompanyCaseUrls()
   } catch (error) {
     console.error('[api/sitemap] Firestore read failed', error)
     res.setHeader('Cache-Control', 'no-store')
@@ -148,7 +143,7 @@ export default async function handler(req, res) {
     return res.status(503).end('Service Unavailable')
   }
 
-  const sitemap = renderSitemap(companyUrls, site)
+  const sitemap = renderSitemap(companyUrls)
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8')
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600')

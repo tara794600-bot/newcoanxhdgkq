@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { access, readFile } from 'node:fs/promises'
+import { access, readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { CONTENT_SITES } from '../shared/company-content.js'
+import { SITE_BASE_URL } from '../shared/site.js'
 import { SEO_META_BY_ROUTE } from '../shared/page-meta.js'
 import handler from '../api/site-page.js'
 import { buildCompanyCasePageHtml } from '../api/company-page.js'
@@ -18,11 +18,12 @@ const response = () => ({
   end(body = '') { this.body = body; return this },
 })
 
-for (const site of CONTENT_SITES) {
+// A request's host must not change the content or canonical URL of this deployment.
+for (const host of [new URL(SITE_BASE_URL).host, 'unrelated.example']) {
   for (const route of ['home', 'lawyers']) {
     const meta = SEO_META_BY_ROUTE[route]
     const res = response()
-    await handler({ method: 'GET', url: meta.path, headers: { host: new URL(site.url).host } }, res)
+    await handler({ method: 'GET', url: meta.path, headers: { host } }, res)
     assert.equal(res.statusCode, 200)
     assert.match(res.headers['Content-Type'], /text\/html/)
     const html = res.body
@@ -31,8 +32,8 @@ for (const site of CONTENT_SITES) {
     assert.equal((body.match(/<h1\b/g) ?? []).length, 1)
     assert.equal((body.match(/id="root"/g) ?? []).length, 1)
     assert.ok(html.includes(`<title>${meta.title}</title>`))
-    assert.ok(html.includes(`rel="canonical" href="${site.url}${meta.path}"`))
-    assert.ok(html.includes(`property="og:url" content="${site.url}${meta.path}"`))
+    assert.ok(html.includes(`rel="canonical" href="${SITE_BASE_URL}${meta.path}"`))
+    assert.ok(html.includes(`property="og:url" content="${SITE_BASE_URL}${meta.path}"`))
     assert.match(body, /href="\/companies"/)
     assert.match(body, /href="\/lawyers"/)
     assert.match(body, /사기 피해회복 자주 묻는 질문/)
@@ -48,7 +49,6 @@ for (const site of CONTENT_SITES) {
       assert.match(body, /서울도봉경찰서 경미범죄 심사위원회 위원/)
       assert.doesNotMatch(body, /class="hero-section"/)
     }
-    if (site.id !== 'site1') assert.ok(!html.includes(CONTENT_SITES[0].url))
     // SSR image/CSS/JS references must point at assets produced by the client build.
     for (const match of html.matchAll(/(?:src|href)="(\/assets\/[^"?#]+)"/g)) {
       await access(path.join(dist, decodeURIComponent(match[1])))
@@ -57,7 +57,7 @@ for (const site of CONTENT_SITES) {
       JSON.parse(match[1])
     }
     const head = response()
-    await handler({ method: 'HEAD', url: `/api/site-page?route=${route}`, headers: { host: new URL(site.url).host } }, head)
+    await handler({ method: 'HEAD', url: `/api/site-page?route=${route}`, headers: { host } }, head)
     assert.equal(head.statusCode, 200)
     assert.equal(head.body, '')
   }
@@ -78,6 +78,9 @@ assert.match(detail, /<h1>회귀 확인 업체<\/h1>/)
 assert.doesNotMatch(detail, /class="hero-section"|data-prerendered/)
 const home = await readFile(path.join(dist, 'index.html'), 'utf8')
 assert.match(home, /나란에서 해결할 수 없다면/)
+assert.deepEqual((await readdir(path.join(dist, 'prerender'))).sort(), ['home.html', 'lawyers.html'])
+assert.equal(home, await readFile(path.join(dist, 'prerender', 'home.html'), 'utf8'))
+assert.equal(await readFile(path.join(dist, 'lawyers.html'), 'utf8'), await readFile(path.join(dist, 'prerender', 'lawyers.html'), 'utf8'))
 await access(path.join(dist, 'logo.png'))
 
 const routes = JSON.parse(await readFile('vercel.json', 'utf8'))
@@ -86,4 +89,4 @@ for (const [source, route] of [['/', 'home'], ['/lawyers', 'lawyers']]) {
 }
 assert.equal(routes.functions['api/company-page.js'].includeFiles, 'dist/app-shell.html')
 assert.equal(routes.functions['api/site-page.js'].includeFiles, 'dist/prerender/**')
-console.log('Public initial HTML verified: 3 domains, 2 routes, metadata, content, assets, HEAD and company-page isolation.')
+console.log('Public initial HTML verified: single site, 2 routes, host independence, metadata, content, assets, HEAD and company-page isolation.')

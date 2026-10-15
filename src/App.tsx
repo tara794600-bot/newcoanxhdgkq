@@ -46,11 +46,8 @@ import law2Img from './assets/law2.png'
 import law3Img from './assets/law3.png'
 import bannerImg from './assets/banner.png'
 import { auth, db, isFirebaseConfigured, storage } from './firebase'
-import { CompanyContentPreview } from './components/CompanyContentPreview'
-import {
-  getContentSite,
-  resolveCompanyContent,
-} from '../shared/company-content.js'
+import { normalizeCompanyContent } from '../shared/company-content.js'
+import { SITE_BASE_URL } from '../shared/site.js'
 import { DEFAULT_SEO_KEYWORDS, SEO_META_BY_ROUTE } from '../shared/page-meta.js'
 import './App.css'
 
@@ -244,12 +241,6 @@ const ROUTE_PATHS: Record<PageRoute, string> = {
   admin: '/admin',
 }
 
-const CONTENT_SITE = getContentSite({
-  hostname: typeof window === 'undefined' ? '' : window.location.hostname,
-  siteId: import.meta.env.VITE_SITE_ID,
-  siteUrl: import.meta.env.VITE_SITE_URL,
-})
-const SITE_BASE_URL = CONTENT_SITE.url
 const SEARCH_RESULT_SITE_NAME = '법무법인 나란'
 const SEARCH_RESULT_SECTION_NAME = '핀테크 전문'
 
@@ -2246,7 +2237,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
             return
           }
 
-          const data = resolveCompanyContent(snapshot.data(), CONTENT_SITE.id)
+          const data = normalizeCompanyContent(snapshot.data())
           const name = toTrimmedString(data.name)
           const service = toTrimmedString(data.service)
           const description = toTrimmedString(data.description)
@@ -2321,7 +2312,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
           .filter((item) => item !== null)
 
         setCompanyCases(
-          shuffleCompanyCases(mappedCases.map((item) => resolveCompanyContent(item, CONTENT_SITE.id))),
+          shuffleCompanyCases(mappedCases.map((item) => normalizeCompanyContent(item))),
         )
         setCompanyCasesLoaded(true)
       },
@@ -3334,9 +3325,8 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
           isPublic && !isSearchBlocked
             ? items.map((item) =>
                 item.id === editingCase.id
-                  ? resolveCompanyContent(
+                  ? normalizeCompanyContent(
                       { ...item, name, service, description, image, isPublic, isSearchBlocked },
-                      CONTENT_SITE.id,
                     )
                   : item,
               )
@@ -3823,11 +3813,6 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
                       required
                     />
                   </label>
-                  <CompanyContentPreview
-                    name={companyNameInput}
-                    service={companyServiceInput}
-                    description={companyDescriptionInput}
-                  />
                   <fieldset className="admin-visibility-options" disabled={companyUploadBusy}>
                     <legend>게시물 노출 설정</legend>
                     <label>
