@@ -101,7 +101,7 @@ Flow:
 3. Vercel API appends a row to Google Sheets.
 4. Vercel API sends a Telegram bot alert.
 
-Required Vercel environment variables are listed in `.env.vercel.example`.
+Frontend and server environment variables are listed in [`.env.example`](.env.example). Copy it to `.env.local` for local configuration and fill in the values for the features you use. Configure the corresponding variables in your Vercel project for deployment. `npm run dev` starts only the Vite frontend; `/api/*` requires a server environment.
 
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 

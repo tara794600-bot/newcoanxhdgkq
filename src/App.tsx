@@ -1,33 +1,6 @@
-import { type CSSProperties, type FormEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { FirebaseError } from 'firebase/app'
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
-  type User,
-} from 'firebase/auth'
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  type DocumentData,
-  getCountFromServer,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  type QueryDocumentSnapshot,
-  serverTimestamp,
-  setDoc,
-  startAfter,
-  updateDoc,
-} from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
+import { lazy, Suspense, type CSSProperties, type FormEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
+import type { User } from 'firebase/auth'
+import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore'
 import heroImg from './assets/hero.png'
 import i1Img from './assets/i1.png'
 import i2Img from './assets/i2.png'
@@ -45,11 +18,14 @@ import law1Img from './assets/law1.png'
 import law2Img from './assets/law2.png'
 import law3Img from './assets/law3.png'
 import bannerImg from './assets/banner.png'
-import { auth, db, isFirebaseConfigured, storage } from './firebase'
+import { isFirebaseConfigured } from './firebase-config'
+import { isFirebaseError, subscribeToFirebase } from './deferred-firebase'
 import { normalizeCompanyContent } from '../shared/company-content.js'
 import { SITE_BASE_URL } from '../shared/site.js'
 import { DEFAULT_SEO_KEYWORDS, SEO_META_BY_ROUTE } from '../shared/page-meta.js'
 import './App.css'
+
+const AdminStyles = lazy(() => import('./admin-styles'))
 
 type PageRoute = 'home' | 'lawyers' | 'companies' | 'admin'
 type AuthViewMode = 'login' | 'signup'
@@ -1225,6 +1201,7 @@ const uploadCaseImage = async (params: {
   const fileExtension = getFileExtension(file)
   const uniqueKey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   const filePath = `${bucketFolder}/${user.uid}/${uniqueKey}.${fileExtension}`
+  const { storage, storageRef, uploadBytes, getDownloadURL } = await import('./firebase-storage')
   const uploadedFileRef = storageRef(storage, filePath)
 
   await uploadBytes(uploadedFileRef, file, {
@@ -1245,12 +1222,13 @@ const deleteCaseImageIfManaged = async (imageUrl: string) => {
     return false
   }
 
+  const { storage, storageRef, deleteObject } = await import('./firebase-storage')
   await deleteObject(storageRef(storage, normalizedImageUrl))
   return true
 }
 
 const toUploadErrorMessage = (error: unknown, fallbackMessage: string) => {
-  if (error instanceof FirebaseError) {
+  if (isFirebaseError(error)) {
     if (error.code === 'storage/unauthorized') {
       return '스토리지 업로드 권한이 없습니다. Firebase Storage Rules를 확인해주세요.'
     }
@@ -1272,7 +1250,7 @@ const toUploadErrorMessage = (error: unknown, fallbackMessage: string) => {
 }
 
 const toAuthErrorMessage = (error: unknown): string => {
-  if (!(error instanceof FirebaseError)) {
+  if (!(isFirebaseError(error))) {
     return '인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
   }
 
@@ -1298,7 +1276,7 @@ const toAuthErrorMessage = (error: unknown): string => {
 }
 
 const isPermissionDeniedError = (error: unknown): boolean =>
-  error instanceof FirebaseError &&
+  isFirebaseError(error) &&
   (error.code === 'permission-denied' || error.code === 'firestore/permission-denied')
 
 const waitFor = (ms: number) =>
@@ -1933,6 +1911,8 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     let frameId = 0
     let previousTime = performance.now()
     let positionX = 0
+    let isVisible = false
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
     const speedPxPerSecond = 48
     const gapPx = 18
 
@@ -1963,10 +1943,26 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
       frameId = window.requestAnimationFrame(animate)
     }
 
-    frameId = window.requestAnimationFrame(animate)
+    const updateAnimation = () => {
+      window.cancelAnimationFrame(frameId)
+      if (isVisible && !document.hidden && !motionPreference.matches) {
+        previousTime = performance.now()
+        frameId = window.requestAnimationFrame(animate)
+      }
+    }
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting
+      updateAnimation()
+    })
+    visibilityObserver.observe(trackEl.parentElement ?? trackEl)
+    document.addEventListener('visibilitychange', updateAnimation)
+    motionPreference.addEventListener('change', updateAnimation)
 
     return () => {
       window.cancelAnimationFrame(frameId)
+      visibilityObserver.disconnect()
+      document.removeEventListener('visibilitychange', updateAnimation)
+      motionPreference.removeEventListener('change', updateAnimation)
       trackEl.style.transform = 'translate3d(0, 0, 0)'
     }
   }, [route, rollingLoopCases])
@@ -2024,99 +2020,109 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
       return
     }
 
-    let active = true
+    return subscribeToFirebase(
+      ({ auth, db, onAuthStateChanged, signOut, doc, getDoc, serverTimestamp, setDoc }) => {
+        let active = true
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!active) {
-        return
-      }
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          if (!active) {
+            return
+          }
 
-      setCurrentUser(user)
+          setCurrentUser(user)
 
-      if (!user) {
-        setIsStaff(false)
-        setIsStaffCheckPending(false)
-        return
-      }
+          if (!user) {
+            setIsStaff(false)
+            setIsStaffCheckPending(false)
+            return
+          }
 
-      setIsStaffCheckPending(true)
+          setIsStaffCheckPending(true)
 
-      try {
-        const [adminSnapshot, legacyStaffSnapshot] = await Promise.all([
-          getDoc(doc(db, 'adminUsers', user.uid)),
-          getDoc(doc(db, 'staffUsers', user.uid)),
-        ])
+          try {
+            const [adminSnapshot, legacyStaffSnapshot] = await Promise.all([
+              getDoc(doc(db, 'adminUsers', user.uid)),
+              getDoc(doc(db, 'staffUsers', user.uid)),
+            ])
 
-        if (!active) {
-          return
-        }
+            if (!active) {
+              return
+            }
 
-        const hasAdminRole =
-          adminSnapshot.exists() &&
-          (Boolean(adminSnapshot.data().isAdmin) || Boolean(adminSnapshot.data().isStaff))
+            const hasAdminRole =
+              adminSnapshot.exists() &&
+              (Boolean(adminSnapshot.data().isAdmin) || Boolean(adminSnapshot.data().isStaff))
 
-        const hasLegacyStaffRole =
-          legacyStaffSnapshot.exists() &&
-          (Boolean(legacyStaffSnapshot.data().isStaff) || Boolean(legacyStaffSnapshot.data().isAdmin))
+            const hasLegacyStaffRole =
+              legacyStaffSnapshot.exists() &&
+              (Boolean(legacyStaffSnapshot.data().isStaff) || Boolean(legacyStaffSnapshot.data().isAdmin))
 
-        const isStaffAccount = hasAdminRole || hasLegacyStaffRole
+            const isStaffAccount = hasAdminRole || hasLegacyStaffRole
 
-        if (isStaffAccount) {
-          setIsStaff(true)
-          setAdminOpen(true)
-          setAuthError('')
-          setAuthNotice('')
-          adminEnrollmentInProgressRef.current = false
+            if (isStaffAccount) {
+              setIsStaff(true)
+              setAdminOpen(true)
+              setAuthError('')
+              setAuthNotice('')
+              adminEnrollmentInProgressRef.current = false
 
-          if (!hasAdminRole && hasLegacyStaffRole) {
-            try {
-              await setDoc(
-                doc(db, 'adminUsers', user.uid),
-                {
-                  email: user.email ?? '',
-                  isAdmin: true,
-                  isStaff: true,
-                  migratedFrom: 'staffUsers',
-                  ...(adminSnapshot.exists() ? {} : { createdAt: serverTimestamp() }),
-                  updatedAt: serverTimestamp(),
-                },
-                { merge: true },
-              )
-            } catch (migrationError) {
-              console.warn('adminUsers 마이그레이션을 건너뜁니다.', migrationError)
+              if (!hasAdminRole && hasLegacyStaffRole) {
+                try {
+                  await setDoc(
+                    doc(db, 'adminUsers', user.uid),
+                    {
+                      email: user.email ?? '',
+                      isAdmin: true,
+                      isStaff: true,
+                      migratedFrom: 'staffUsers',
+                      ...(adminSnapshot.exists() ? {} : { createdAt: serverTimestamp() }),
+                      updatedAt: serverTimestamp(),
+                    },
+                    { merge: true },
+                  )
+                } catch (migrationError) {
+                  console.warn('adminUsers 마이그레이션을 건너뜁니다.', migrationError)
+                }
+              }
+            } else if (adminEnrollmentInProgressRef.current) {
+              setIsStaff(false)
+              setAuthNotice('초대코드 확인 후 관리자 승인 중입니다...')
+            } else {
+              setIsStaff(false)
+              setAdminOpen(false)
+              setAuthError('관리자 계정만 로그인할 수 있습니다.')
+              setShowAuthModal(true)
+              await signOut(auth)
+            }
+          } catch (error) {
+            console.error(error)
+
+            if (!active) {
+              return
+            }
+
+            setIsStaff(false)
+            setAuthError('관리자 권한 확인 중 오류가 발생했습니다.')
+          } finally {
+            if (active) {
+              setIsStaffCheckPending(false)
             }
           }
-        } else if (adminEnrollmentInProgressRef.current) {
-          setIsStaff(false)
-          setAuthNotice('초대코드 확인 후 관리자 승인 중입니다...')
-        } else {
-          setIsStaff(false)
-          setAdminOpen(false)
-          setAuthError('관리자 계정만 로그인할 수 있습니다.')
-          setShowAuthModal(true)
-          await signOut(auth)
+        })
+
+        return () => {
+          active = false
+          unsubscribe()
         }
-      } catch (error) {
+      },
+      (error) => {
         console.error(error)
-
-        if (!active) {
-          return
-        }
-
-        setIsStaff(false)
-        setAuthError('관리자 권한 확인 중 오류가 발생했습니다.')
-      } finally {
-        if (active) {
-          setIsStaffCheckPending(false)
-        }
-      }
-    })
-
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [])
+        setIsStaffCheckPending(false)
+        setAuthError('관리자 인증 기능을 불러오지 못했습니다. 새로고침해주세요.')
+      },
+      route !== 'admin',
+    )
+  }, [route])
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -2124,88 +2130,110 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
       return
     }
 
-    const rollingCasesQuery = query(collection(db, 'rollingCases'), orderBy('createdAt', 'desc'))
+    if (route !== 'home' && route !== 'admin') return
 
-    const unsubscribe = onSnapshot(
-      rollingCasesQuery,
-      (snapshot) => {
-        const mappedCases = snapshot.docs
-          .map((snapshotDoc) => {
-            const data = snapshotDoc.data()
-            const category = toTrimmedString(data.category)
-            const title = toTrimmedString(data.title)
-            const result = toTrimmedString(data.result)
-            const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
+    return subscribeToFirebase(
+      ({ db, collection, onSnapshot, orderBy, query }) => {
+        const rollingCasesQuery = query(collection(db, 'rollingCases'), orderBy('createdAt', 'desc'))
 
-            if (!category || !title || !result || !image) {
-              return null
-            }
+        const unsubscribe = onSnapshot(
+          rollingCasesQuery,
+          (snapshot) => {
+            const mappedCases = snapshot.docs
+              .map((snapshotDoc) => {
+                const data = snapshotDoc.data()
+                const category = toTrimmedString(data.category)
+                const title = toTrimmedString(data.title)
+                const result = toTrimmedString(data.result)
+                const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
 
-            return {
-              id: snapshotDoc.id,
-              category,
-              title,
-              result,
-              image,
-            }
-          })
-          .filter((item): item is RollingCase => item !== null)
+                if (!category || !title || !result || !image) {
+                  return null
+                }
 
-        setRollingCases(mappedCases)
+                return {
+                  id: snapshotDoc.id,
+                  category,
+                  title,
+                  result,
+                  image,
+                }
+              })
+              .filter((item): item is RollingCase => item !== null)
+
+            setRollingCases(mappedCases)
+          },
+          (error) => {
+            console.error(error)
+            setRollingCases([])
+          },
+        )
+
+        return () => {
+          unsubscribe()
+        }
       },
       (error) => {
         console.error(error)
         setRollingCases([])
       },
+      route !== 'admin',
     )
-
-    return () => {
-      unsubscribe()
-    }
-  }, [])
+  }, [route])
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
       return
     }
 
-    const powerlinkLinksQuery = query(collection(db, 'powerlinkLinks'), orderBy('createdAt', 'desc'))
+    if (route !== 'admin' && !landingToken) return
 
-    const unsubscribe = onSnapshot(
-      powerlinkLinksQuery,
-      (snapshot) => {
-        const mappedLinks = snapshot.docs
-          .map((snapshotDoc) => {
-            const data = snapshotDoc.data()
-            const keyword = toTrimmedString(data.keyword)
-            const token = toTrimmedString(data.token)
-            const url = toTrimmedString(data.url)
+    return subscribeToFirebase(
+      ({ db, collection, onSnapshot, orderBy, query }) => {
+        const powerlinkLinksQuery = query(collection(db, 'powerlinkLinks'), orderBy('createdAt', 'desc'))
 
-            if (!keyword || !token || !url) {
-              return null
-            }
+        const unsubscribe = onSnapshot(
+          powerlinkLinksQuery,
+          (snapshot) => {
+            const mappedLinks = snapshot.docs
+              .map((snapshotDoc) => {
+                const data = snapshotDoc.data()
+                const keyword = toTrimmedString(data.keyword)
+                const token = toTrimmedString(data.token)
+                const url = toTrimmedString(data.url)
 
-            return {
-              id: snapshotDoc.id,
-              keyword,
-              token,
-              url,
-            }
-          })
-          .filter((item): item is PowerlinkLink => item !== null)
+                if (!keyword || !token || !url) {
+                  return null
+                }
 
-        setPowerlinkLinks(mappedLinks)
+                return {
+                  id: snapshotDoc.id,
+                  keyword,
+                  token,
+                  url,
+                }
+              })
+              .filter((item): item is PowerlinkLink => item !== null)
+
+            setPowerlinkLinks(mappedLinks)
+          },
+          (error) => {
+            console.error(error)
+            setPowerlinkLinks([])
+          },
+        )
+
+        return () => {
+          unsubscribe()
+        }
       },
       (error) => {
         console.error(error)
         setPowerlinkLinks([])
       },
+      route !== 'admin',
     )
-
-    return () => {
-      unsubscribe()
-    }
-  }, [])
+  }, [landingToken, route])
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -2225,9 +2253,10 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
       let active = true
       setCompanyCasesLoaded(false)
 
-      void getDoc(doc(db, 'companyCases', selectedCompanyCaseId))
+      void import('./firebase')
+        .then(({ getDoc, doc, db }) => active ? getDoc(doc(db, 'companyCases', selectedCompanyCaseId)) : null)
         .then((snapshot) => {
-          if (!active) {
+          if (!active || !snapshot) {
             return
           }
 
@@ -2276,45 +2305,58 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     }
 
     setCompanyCasesLoaded(false)
-    const companyCasesQuery = collection(db, 'companyCases')
+    return subscribeToFirebase(
+      ({ db, collection, onSnapshot }) => {
+        const companyCasesQuery = collection(db, 'companyCases')
 
-    const unsubscribe = onSnapshot(
-      companyCasesQuery,
-      (snapshot) => {
-        const mappedCases = snapshot.docs
-          .map((snapshotDoc) => {
-            const data = snapshotDoc.data()
-            const name = toTrimmedString(data.name)
-            const service = toTrimmedString(data.service)
-            const description = toTrimmedString(data.description)
-            const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
-            const isPublic = data.isPublic !== false
-            const isSearchBlocked = data.isSearchBlocked === true
+        const unsubscribe = onSnapshot(
+          companyCasesQuery,
+          (snapshot) => {
+            const mappedCases = snapshot.docs
+              .map((snapshotDoc) => {
+                const data = snapshotDoc.data()
+                const name = toTrimmedString(data.name)
+                const service = toTrimmedString(data.service)
+                const description = toTrimmedString(data.description)
+                const image = toTrimmedString(data.image) || toTrimmedString(data.imageUrl)
+                const isPublic = data.isPublic !== false
+                const isSearchBlocked = data.isSearchBlocked === true
 
-            // 검색차단 글도 파워링크 검색어의 관련 게시글 섹션에는 표시한다.
-            if (
-              !name || !service || !description || !image || !isPublic ||
-              (isSearchBlocked && !isPowerlinkLanding)
-            ) {
-              return null
-            }
+                // 검색차단 글도 파워링크 검색어의 관련 게시글 섹션에는 표시한다.
+                if (
+                  !name || !service || !description || !image || !isPublic ||
+                  (isSearchBlocked && !isPowerlinkLanding)
+                ) {
+                  return null
+                }
 
-            return {
-              id: snapshotDoc.id,
-              name,
-              service,
-              description,
-              image,
-              isPublic,
-              isSearchBlocked,
-            }
-          })
-          .filter((item) => item !== null)
+                return {
+                  id: snapshotDoc.id,
+                  name,
+                  service,
+                  description,
+                  image,
+                  isPublic,
+                  isSearchBlocked,
+                }
+              })
+              .filter((item) => item !== null)
 
-        setCompanyCases(
-          shuffleCompanyCases(mappedCases.map((item) => normalizeCompanyContent(item))),
+            setCompanyCases(
+              shuffleCompanyCases(mappedCases.map((item) => normalizeCompanyContent(item))),
+            )
+            setCompanyCasesLoaded(true)
+          },
+          (error) => {
+            console.error(error)
+            setCompanyCases([])
+            setCompanyCasesLoaded(true)
+          },
         )
-        setCompanyCasesLoaded(true)
+
+        return () => {
+          unsubscribe()
+        }
       },
       (error) => {
         console.error(error)
@@ -2322,10 +2364,6 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
         setCompanyCasesLoaded(true)
       },
     )
-
-    return () => {
-      unsubscribe()
-    }
   }, [landingPowerlinkKeyword, route, selectedCompanyCaseId])
 
   useEffect(() => {
@@ -2350,6 +2388,8 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
 
     const loadAdminCompanyPage = async () => {
       try {
+        const { db, collection, getCountFromServer, getDocs, limit, orderBy, query, startAfter } = await import('./firebase')
+        if (!active) return
         const collectionRef = collection(db, 'companyCases')
         const previousPageCursor =
           adminCompanyCurrentPage > 1
@@ -2458,6 +2498,8 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
 
     const loadAllAdminCompanyCasesForSearch = async () => {
       try {
+        const { db, collection, getDocs, orderBy, query } = await import('./firebase')
+        if (!active) return
         const snapshot = await getDocs(query(collection(db, 'companyCases'), orderBy('createdAt', 'desc')))
         const mappedCases = snapshot.docs
           .map((snapshotDoc) => {
@@ -2571,6 +2613,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     let adminEnrollmentWriteFailed = false
 
     try {
+      const { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, doc, serverTimestamp, setDoc } = await import('./firebase')
       let credential
 
       if (authMode === 'signup') {
@@ -2619,16 +2662,17 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
       setAuthPassword('')
       setInviteCode('')
     } catch (error) {
-      if (startedAdminEnrollment && auth.currentUser) {
+      if (startedAdminEnrollment) {
         try {
-          await signOut(auth)
+          const { auth, signOut } = await import('./firebase')
+          if (auth.currentUser) await signOut(auth)
         } catch (signOutError) {
           console.error(signOutError)
         }
       }
 
       if (adminEnrollmentWriteFailed) {
-        if (error instanceof FirebaseError) {
+        if (isFirebaseError(error)) {
           setAuthError(
             `초대코드는 확인되었지만 관리자 승인 저장에 실패했습니다. (${error.code}) Firestore 규칙 배포/권한을 확인해주세요.`,
           )
@@ -2664,10 +2708,11 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     setAuthNotice('')
 
     try {
+      const { auth, sendPasswordResetEmail } = await import('./firebase')
       await sendPasswordResetEmail(auth, email)
       setAuthNotice('비밀번호 재설정 메일을 보냈습니다. 메일함(스팸함 포함)을 확인해주세요.')
     } catch (error) {
-      if (error instanceof FirebaseError) {
+      if (isFirebaseError(error)) {
         if (error.code === 'auth/invalid-email') {
           setAuthError('이메일 형식이 올바르지 않습니다.')
         } else if (error.code === 'auth/user-not-found') {
@@ -2691,6 +2736,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     }
 
     try {
+      const { auth, signOut } = await import('./firebase')
       await signOut(auth)
       setAdminOpen(false)
       setAdminNotice('')
@@ -3013,6 +3059,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     setPowerlinkGenerateBusy(true)
 
     try {
+      const { db, addDoc, collection, serverTimestamp } = await import('./firebase')
       const idToken = await currentUser.getIdToken()
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -3068,6 +3115,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     }
 
     try {
+      const { db, deleteDoc, doc } = await import('./firebase')
       await deleteDoc(doc(db, 'powerlinkLinks', id))
       setAdminNotice('파워링크 URL 정보를 삭제했습니다.')
     } catch (error) {
@@ -3125,6 +3173,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     setRollingUploadBusy(true)
 
     try {
+      const { db, addDoc, collection, serverTimestamp } = await import('./firebase')
       const image = await uploadCaseImage({
         file: imageFile,
         user: currentUser,
@@ -3168,6 +3217,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     }
 
     try {
+      const { db, deleteDoc, doc } = await import('./firebase')
       await deleteDoc(doc(db, 'rollingCases', id))
 
       let removedManagedImage = false
@@ -3268,6 +3318,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     setCompanyUploadBusy(true)
 
     try {
+      const { db, addDoc, collection, doc, serverTimestamp, updateDoc } = await import('./firebase')
       let image = editingCase?.image ?? ''
 
       if (imageFile) {
@@ -3400,6 +3451,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     setCompanyVisibilityBusyId(item.id)
 
     try {
+      const { db, doc, serverTimestamp, updateDoc } = await import('./firebase')
       await updateDoc(doc(db, 'companyCases', item.id), {
         isPublic,
         isSearchBlocked,
@@ -3452,6 +3504,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     }
 
     try {
+      const { db, deleteDoc, doc } = await import('./firebase')
       await deleteDoc(doc(db, 'companyCases', id))
       refreshAdminCompanyList()
 
@@ -3486,7 +3539,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     }
   }
 
-  return (
+  const appShell = (
     <div className={`app-shell ${route === 'admin' ? 'app-shell-admin' : ''}`} data-prerendered={import.meta.env.SSR ? '' : undefined}>
       {route !== 'admin' ? (
         <header className="top-nav">
@@ -4900,6 +4953,13 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
         </>
       ) : null}
     </div>
+  )
+
+  return (
+    <Suspense fallback={<div className="section-wrap" role="status">관리자 화면을 불러오는 중입니다...</div>}>
+      {route === 'admin' || showAuthModal ? <AdminStyles /> : null}
+      {appShell}
+    </Suspense>
   )
 }
 
