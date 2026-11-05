@@ -1460,18 +1460,16 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
     () => getNaverTrackedKeywordFromQueryString(landingSearch),
     [landingSearch],
   )
+  // 화면에 노출되는 키워드는 관리자가 생성한 /p/ 토큰 링크에서만 가져온다.
+  // URL 쿼리(n_query 등)는 누구나 임의로 만들 수 있으므로 화면·SEO 메타에 쓰지 않고 유입 판별·상담 기록에만 사용한다.
   const landingPowerlinkKeyword = useMemo(() => {
-    if (trackedNaverKeyword) {
-      return trackedNaverKeyword
-    }
-
     if (!landingToken) {
       return ''
     }
 
     const matchedLink = powerlinkLinks.find((item) => item.token === landingToken)
     return matchedLink?.keyword ?? ''
-  }, [landingToken, powerlinkLinks, trackedNaverKeyword])
+  }, [landingToken, powerlinkLinks])
   const isNaverPowerlinkVisit = Boolean(landingToken || trackedNaverKeyword)
   const showHeroTypingCursor = route === 'home' && heroTypedText.length < HERO_TYPING_TEXT.length
   const companiesBannerTypingText = isCompactViewport
