@@ -7,6 +7,7 @@ import {
   shuffleCompanyCases,
 } from '../api/company-page.js'
 import { renderSitemap } from '../api/sitemap.js'
+import { getCompanyBaseName, getCompanyGuide, pickRelatedCompanyCases } from '../shared/company-guide.js'
 
 const indexHtml = await readFile(new URL('../dist/app-shell.html', import.meta.url), 'utf8')
 const sampleItems = [
@@ -65,6 +66,34 @@ assert.match(detailHtml, /"datePublished":"2026-08-01T01:02:03.000Z"/)
 assert.match(detailHtml, /"dateModified":"2026-08-02T04:05:06.000Z"/)
 assert.match(detailHtml, /"kind":"detail"/)
 assert.doesNotMatch(detailHtml, /homepage-faq-structured-data/)
+assert.match(detailHtml, /class="company-guide"/)
+assert.match(detailHtml, /"@type":"FAQPage"/)
+assert.match(detailHtml, /<p class="company-detail-dates">게시 <time datetime="2026-08-01T01:02:03.000Z">2026-08-01<\/time> · 수정/)
+
+const relatedDetailHtml = buildCompanyCasePageHtml(indexHtml, sampleItems[0], [
+  { id: 'sample-two', name: '샘플 업체 2', service: '로맨스스캠 의심 사례' },
+])
+assert.match(relatedDetailHtml, /<a href="\/companies\/sample-two"><span class="company-related-name">샘플 업체 2<\/span>/)
+assert.match(relatedDetailHtml, /"related":\[\{"id":"sample-two"/)
+assert.doesNotMatch(
+  buildCompanyCasePageHtml(indexHtml, { ...sampleItems[0], isPublic: false }, [{ id: 'sample-two', name: 'x', service: 'y' }]),
+  /company-related/,
+)
+
+assert.deepEqual(
+  pickRelatedCompanyCases(
+    [{ id: 'n1', name: 'N1', service: 's' }, { id: 'hidden', name: 'H', service: 's', isSearchBlocked: true }],
+    [{ id: 'o1', name: 'O1', service: 's' }, { id: 'self', name: 'S', service: 's' }, { id: 'phone', name: 'P', service: 's', isPublic: false }],
+    'self',
+  ).map((item) => item.id),
+  ['n1', 'o1'],
+)
+assert.equal(getCompanyBaseName('Bookook 사기 사칭'), 'Bookook')
+assert.equal(getCompanyBaseName('gd-markets 사칭 사기'), 'gd-markets')
+assert.equal(getCompanyBaseName('사기'), '사기')
+assert.equal(getCompanyGuide({ name: 'Bain', service: '주식 리딩방' }).categoryKey, 'leading')
+assert.equal(getCompanyGuide({ name: 'Bain', service: '로또번호 투자' }).categoryKey, 'general')
+assert.equal(getCompanyGuide({ name: '태양에셋', service: '코인 자동매매 기반' }).categoryKey, 'coin')
 
 const privateDetailHtml = buildCompanyCasePageHtml(indexHtml, {
   ...sampleItems[0],
@@ -72,7 +101,8 @@ const privateDetailHtml = buildCompanyCasePageHtml(indexHtml, {
   isSearchBlocked: false,
 })
 
-assert.match(privateDetailHtml, /<title>샘플 업체 1 \| 사기업체 게시판 \| 법무법인 나란<\/title>/)
+assert.match(privateDetailHtml, /<title>샘플 업체 1 피해 대응·피해금 회수 절차 \| 법무법인 나란<\/title>/)
+assert.doesNotMatch(privateDetailHtml, /class="company-guide"|"@type":"FAQPage"/)
 assert.match(privateDetailHtml, /현재 페이지는 삭제되었습니다\.<br \/>해당 내용으로 사칭 피해를 보신 분들은 즉시 1551-7203으로 연락 바랍니다\./)
 assert.match(privateDetailHtml, /href="tel:15517203">전화연결<\/a>/)
 assert.match(privateDetailHtml, /content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/)

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { matchesCompanySearch, normalizeCompanyContent } from '../shared/company-content.js'
 import { SITE_BASE_URL } from '../shared/site.js'
 import { buildCompaniesPageHtml, buildCompanyCasePageHtml, buildNotFoundPageHtml } from '../api/company-page.js'
+import { getCompanyCaseSeoDescription } from '../shared/company-guide.js'
 import { renderSitemap } from '../api/sitemap.js'
 
 const html = await readFile(new URL('../dist/app-shell.html', import.meta.url), 'utf8')
@@ -21,15 +22,15 @@ assert.ok(matchesCompanySearch(original, '투자사기'))
 assert.equal(matchesCompanySearch(original, '없는 검색어'), false)
 
 const detail = buildCompanyCasePageHtml(html, original)
-assert.ok(detail.includes(`<title>${original.name} | 사기업체 게시판 | 법무법인 나란</title>`))
+assert.ok(detail.includes(`<title>${original.name} 피해 대응·피해금 회수 절차 | 법무법인 나란</title>`))
 assert.ok(detail.includes(`<h1>${original.name}</h1>`))
 assert.ok(detail.includes(`rel="canonical" href="${SITE_BASE_URL}/companies/shared-post"`))
-assert.ok(detail.includes(`property="og:title" content="${original.name} | 사기업체 게시판 | 법무법인 나란"`))
-assert.ok(detail.includes(`name="twitter:title" content="${original.name} | 사기업체 게시판 | 법무법인 나란"`))
+assert.ok(detail.includes(`property="og:title" content="${original.name} 피해 대응·피해금 회수 절차 | 법무법인 나란"`))
+assert.ok(detail.includes(`name="twitter:title" content="${original.name} 피해 대응·피해금 회수 절차 | 법무법인 나란"`))
 assert.equal(readBootstrap(detail).item.description, original.description)
 assert.equal(readBootstrap(detail).item.name, original.name)
 assert.equal(readArticle(detail).headline, original.name)
-assert.equal(readArticle(detail).description, original.description.replace(/\s+/g, ' '))
+assert.equal(readArticle(detail).description, getCompanyCaseSeoDescription(original))
 
 const list = buildCompaniesPageHtml(html, { items: [original], page: 1, searchQuery: '', totalCount: 1, totalPages: 1 })
 assert.equal(readBootstrap(list).items[0].name, original.name)

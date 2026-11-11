@@ -1693,6 +1693,177 @@ main {
   text-decoration: none;
 }
 
+.company-detail-dates {
+  margin: 12px 0 0;
+  color: #6b7a8c;
+  font-size: 14px;
+}
+
+.company-guide {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+  color: #3d4b5c;
+  font-size: 16px;
+  line-height: 1.72;
+  word-break: keep-all;
+}
+
+.company-guide p {
+  margin: 0;
+}
+
+.company-guide-intro {
+  border-left: 4px solid #3d79a6;
+  border-radius: 8px;
+  background: #f7f9fc;
+  padding: 16px 18px;
+  color: #26384a;
+  font-weight: 600;
+}
+
+.company-guide-block {
+  border: 1px solid #d8dee5;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+}
+
+.company-guide-block h2 {
+  margin: 0 0 4px;
+  color: #1f2734;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.company-guide-checklist,
+.company-guide-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.company-guide-checklist li {
+  position: relative;
+  padding-left: 22px;
+}
+
+.company-guide-checklist li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.72em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3d79a6;
+}
+
+.company-guide-steps li {
+  border-radius: 10px;
+  background: #f7f9fc;
+  padding: 14px 16px;
+}
+
+.company-guide-steps strong {
+  color: #1f4f76;
+}
+
+.company-guide-steps p {
+  margin-top: 4px;
+}
+
+.company-guide-faq-item + .company-guide-faq-item {
+  border-top: 1px solid #e4e9ef;
+  padding-top: 12px;
+}
+
+.company-guide-faq-item h3 {
+  margin: 0 0 4px;
+  color: #26384a;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.company-guide-disclaimer {
+  color: #6b7a8c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.company-related-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 8px;
+}
+
+.company-related-list a {
+  display: grid;
+  gap: 2px;
+  height: 100%;
+  border: 1px solid #e4e9ef;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.company-related-list a:hover,
+.company-related-list a:focus-visible {
+  border-color: #3d79a6;
+}
+
+.company-related-name {
+  color: #1f2734;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.company-related-service {
+  color: #6b7a8c;
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.company-related-all {
+  justify-self: start;
+  color: #1f4f76;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .company-guide {
+    margin-top: 20px;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  .company-guide-block {
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .company-guide-block h2 {
+    font-size: 17px;
+  }
+
+  .company-guide-faq-item h3 {
+    font-size: 15px;
+  }
+}
+
 .company-card-service {
   margin: 0;
   color: #3f6f9e;

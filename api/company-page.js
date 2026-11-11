@@ -4,6 +4,15 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { matchesCompanySearch, normalizeCompanyContent } from '../shared/company-content.js'
+import {
+  formatKstDate,
+  getCompanyCaseSeoDescription,
+  getCompanyCaseSeoKeywords,
+  getCompanyCaseSeoTitle,
+  getCompanyFaqStructuredData,
+  getCompanyGuide,
+  pickRelatedCompanyCases,
+} from '../shared/company-guide.js'
 import { SITE_BASE_URL } from '../shared/site.js'
 
 const DESCRIPTION_MAX_LENGTH = 155
@@ -363,7 +372,35 @@ const getCompanyCase = async (id) => {
     return null
   }
 
-  return mapCompanyCase(snapshot)
+  const companyCase = mapCompanyCase(snapshot)
+  return companyCase ? { companyCase, createdAt: snapshot.get('createdAt') ?? null } : null
+}
+
+const RELATED_FETCH_PER_SIDE = 10
+const RELATED_LINK_COUNT = 12
+
+// Links each detail page to its chronological neighbours so every case is reachable by
+// crawling, not only through the sitemap. Costs ~20 document reads per uncached render.
+const getRelatedCompanyCases = async (companyCase, createdAt) => {
+  try {
+    const collectionRef = getFirestore(getFirebaseApp()).collection('companyCases')
+    const toItems = (snapshot) => snapshot.docs.map((item) => mapCompanyCase(item)).filter(Boolean)
+
+    if (!createdAt) {
+      const latest = await collectionRef.orderBy('createdAt', 'desc').limit(RELATED_LINK_COUNT + 4).get()
+      return pickRelatedCompanyCases(toItems(latest), [], companyCase.id, RELATED_LINK_COUNT)
+    }
+
+    const [newer, older] = await Promise.all([
+      collectionRef.orderBy('createdAt', 'asc').startAfter(createdAt).limit(RELATED_FETCH_PER_SIDE).get(),
+      collectionRef.orderBy('createdAt', 'desc').startAfter(createdAt).limit(RELATED_FETCH_PER_SIDE).get(),
+    ])
+
+    return pickRelatedCompanyCases(toItems(newer), toItems(older), companyCase.id, RELATED_LINK_COUNT)
+  } catch (error) {
+    console.error('[api/company-page] related cases unavailable', error)
+    return []
+  }
 }
 
 const getCompaniesPage = async ({ page, searchQuery }) => {
@@ -473,7 +510,79 @@ const renderCompaniesServerContent = (pageData, baseUrl) => {
   </div>`
 }
 
-const renderCompanyCaseServerContent = (companyCase, baseUrl) => {
+const renderList = (items, className) =>
+  `<ul class="${className}">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+
+const renderCompanyDates = (companyCase) => {
+  const published = formatKstDate(companyCase.datePublished)
+  const modified = formatKstDate(companyCase.dateModified)
+
+  if (!published && !modified) {
+    return ''
+  }
+
+  const parts = []
+  if (published) parts.push(`게시 <time datetime="${escapeHtml(companyCase.datePublished)}">${published}</time>`)
+  if (modified && modified !== published) {
+    parts.push(`수정 <time datetime="${escapeHtml(companyCase.dateModified)}">${modified}</time>`)
+  }
+  return `<p class="company-detail-dates">${parts.join(' · ')}</p>`
+}
+
+export const renderCompanyGuideServerContent = (companyCase, related = []) => {
+  const guide = getCompanyGuide(companyCase)
+  const steps = guide.steps
+    .map(
+      (step, index) =>
+        `<li><strong>${index + 1}. ${escapeHtml(step.title)}</strong><p>${escapeHtml(step.body)}</p></li>`,
+    )
+    .join('')
+  const faq = guide.faq
+    .map((item) => `<div class="company-guide-faq-item"><h3>${escapeHtml(item.q)}</h3><p>${escapeHtml(item.a)}</p></div>`)
+    .join('')
+  const relatedLinks = related.length
+    ? `<section class="company-guide-block company-related" aria-labelledby="company-related-title">
+            <h2 id="company-related-title">다른 피해 사례 업체</h2>
+            <ul class="company-related-list">${related
+              .map(
+                (item) =>
+                  `<li><a href="${escapeHtml(`/companies/${encodeURIComponent(item.id)}`)}"><span class="company-related-name">${escapeHtml(
+                    item.name,
+                  )}</span><span class="company-related-service">${escapeHtml(item.service)}</span></a></li>`,
+              )
+              .join('')}</ul>
+            <a class="company-related-all" href="/companies">사기업체 게시판 전체 보기</a>
+          </section>`
+    : ''
+
+  return `<div class="company-guide">
+          <p class="company-guide-intro">${escapeHtml(guide.intro)}</p>
+          <section class="company-guide-block">
+            <h2>${escapeHtml(guide.flowTitle)}</h2>
+            ${guide.flow.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}
+          </section>
+          <section class="company-guide-block">
+            <h2>${escapeHtml(guide.signalsTitle)}</h2>
+            ${renderList(guide.signals, 'company-guide-checklist')}
+          </section>
+          <section class="company-guide-block">
+            <h2>${escapeHtml(guide.prepareTitle)}</h2>
+            ${renderList(guide.prepare, 'company-guide-checklist')}
+          </section>
+          <section class="company-guide-block">
+            <h2>${escapeHtml(guide.stepsTitle)}</h2>
+            <ol class="company-guide-steps">${steps}</ol>
+          </section>
+          <section class="company-guide-block">
+            <h2>${escapeHtml(guide.faqTitle)}</h2>
+            ${faq}
+          </section>
+          <p class="company-guide-disclaimer">${escapeHtml(guide.disclaimer)}</p>
+          ${relatedLinks}
+        </div>`
+}
+
+const renderCompanyCaseServerContent = (companyCase, baseUrl, related = []) => {
   const imageUrl = toAbsoluteUrl(companyCase.image, baseUrl) || `${baseUrl}/logo.png`
 
   return `<div class="app-shell">
@@ -492,10 +601,12 @@ const renderCompanyCaseServerContent = (companyCase, baseUrl) => {
               <div class="company-detail-copy">
                 <p class="company-detail-service">${escapeHtml(companyCase.service)}</p>
                 <h1>${escapeHtml(companyCase.name)}</h1>
+                ${renderCompanyDates(companyCase)}
                 ${renderDescriptionParagraphs(companyCase.description)}
               </div>
             </div>
           </article>
+          ${renderCompanyGuideServerContent(companyCase, related)}
         </div>
       </section>
     </main>
@@ -600,18 +711,17 @@ export const buildCompaniesPageHtml = (html, pageData) => {
   return nextHtml
 }
 
-export const buildCompanyCasePageHtml = (html, rawCompanyCase) => {
+export const buildCompanyCasePageHtml = (html, rawCompanyCase, related = []) => {
   const companyCase = normalizeCompanyContent(rawCompanyCase)
+  const isDeletedPage = companyCase.isPublic === false
   const DEFAULT_IMAGE_URL = `${SITE_BASE_URL}/logo.png`
   const path = `/companies/${encodeURIComponent(companyCase.id)}`
   const canonicalUrl = `${SITE_BASE_URL}${path}`
   const imageUrl = toAbsoluteUrl(companyCase.image, SITE_BASE_URL) || DEFAULT_IMAGE_URL
-  const title = `${companyCase.name} | 사기업체 게시판 | 법무법인 나란`
-  const description = getDescriptionExcerpt(
-    companyCase.description,
-    `${companyCase.name} 관련 ${companyCase.service} 피해 사례와 피해회복 상담 정보를 확인하세요.`,
-  )
-  const keywords = `${companyCase.name}, ${companyCase.service}, ${companyCase.name} 사기, 사기업체 게시판, 사기 피해 사례, 피해회복 상담, 법무법인 나란`
+  const title = getCompanyCaseSeoTitle(companyCase)
+  const description = getDescriptionExcerpt(getCompanyCaseSeoDescription(companyCase), companyCase.description)
+  const keywords = getCompanyCaseSeoKeywords(companyCase)
+  const relatedLinks = isDeletedPage ? [] : related
 
   let nextHtml = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`)
   nextHtml = replaceOrInsertMeta(nextHtml, 'name', 'description', description)
@@ -653,29 +763,33 @@ export const buildCompanyCasePageHtml = (html, rawCompanyCase) => {
         },
         author: {
           '@type': 'Organization',
+          '@id': `${SITE_BASE_URL}/#legalservice`,
           name: '법무법인 나란',
           url: SITE_BASE_URL,
         },
         publisher: {
           '@type': 'Organization',
+          '@id': `${SITE_BASE_URL}/#legalservice`,
           name: '법무법인 나란',
           url: SITE_BASE_URL,
         },
         about: [companyCase.name, companyCase.service, '사기 피해 사례', '피해회복 상담'],
       },
       getCompaniesBreadcrumbStructuredData(canonicalUrl, companyCase, SITE_BASE_URL),
+      ...(isDeletedPage ? [] : [getCompanyFaqStructuredData(companyCase, canonicalUrl)]),
     ],
   })
 
   nextHtml = replaceOrInsertBootstrapData(nextHtml, {
     kind: 'detail',
     item: companyCase,
+    related: relatedLinks,
   })
   nextHtml = replaceRootContent(
     nextHtml,
-    companyCase.isPublic === false
+    isDeletedPage
       ? renderPhoneCompanyCaseServerContent(companyCase)
-      : renderCompanyCaseServerContent(companyCase, SITE_BASE_URL),
+      : renderCompanyCaseServerContent(companyCase, SITE_BASE_URL, relatedLinks),
   )
   nextHtml = removeHomepageOnlyStructuredData(nextHtml)
 
@@ -768,18 +882,24 @@ export default async function handler(req, res) {
     const indexHtml = await getIndexHtml()
 
     if (id) {
-      const companyCase = await getCompanyCase(id)
+      const found = await getCompanyCase(id)
 
-      if (!companyCase) {
+      if (!found) {
         const requestedPath = `/companies/${encodeURIComponent(id)}`
         return sendHtml(req, res, 404, buildNotFoundPageHtml(indexHtml, requestedPath), 'no-store')
       }
+
+      const { companyCase, createdAt } = found
+      const related =
+        companyCase.isPublic === false || req.method === 'HEAD'
+          ? []
+          : await getRelatedCompanyCases(companyCase, createdAt)
 
       return sendHtml(
         req,
         res,
         200,
-        buildCompanyCasePageHtml(indexHtml, companyCase),
+        buildCompanyCasePageHtml(indexHtml, companyCase, related),
         'public, s-maxage=300, stale-while-revalidate=3600',
       )
     }

@@ -21,6 +21,14 @@ import bannerImg from './assets/banner.png'
 import { isFirebaseConfigured } from './firebase-config'
 import { isFirebaseError, subscribeToFirebase } from './deferred-firebase'
 import { normalizeCompanyContent } from '../shared/company-content.js'
+import {
+  getCompanyCaseSeoDescription,
+  getCompanyCaseSeoKeywords,
+  getCompanyCaseSeoTitle,
+  getCompanyFaqStructuredData,
+} from '../shared/company-guide.js'
+import type { RelatedCompanyCase } from '../shared/company-guide.js'
+import { CompanyDates, CompanyGuide } from './CompanyGuide'
 import { SITE_BASE_URL } from '../shared/site.js'
 import { DEFAULT_SEO_KEYWORDS, SEO_META_BY_ROUTE } from '../shared/page-meta.js'
 import './App.css'
@@ -98,6 +106,7 @@ type CompanyPageBootstrap =
   | {
       kind: 'detail'
       item: CompanyCase
+      related?: RelatedCompanyCase[]
     }
   | {
       kind: 'list'
@@ -340,16 +349,13 @@ const getSeoDescriptionExcerpt = (description: string, fallback: string): string
 }
 
 const getCompanyCaseSeoMeta = (companyCase: CompanyCase): SeoMeta => {
-  const title = `${companyCase.name} | 사기업체 게시판 | 법무법인 나란`
-  const description = getSeoDescriptionExcerpt(
-    companyCase.description,
-    `${companyCase.name} 관련 ${companyCase.service} 피해 사례와 피해회복 상담 정보를 확인하세요.`,
-  )
+  const title = getCompanyCaseSeoTitle(companyCase)
+  const description = getSeoDescriptionExcerpt(getCompanyCaseSeoDescription(companyCase), companyCase.description)
 
   return {
     title,
     description,
-    keywords: `${companyCase.name}, ${companyCase.service}, ${companyCase.name} 사기, 사기업체 게시판, 사기 피해 사례, 피해회복 상담, ${DEFAULT_SEO_KEYWORDS}`,
+    keywords: getCompanyCaseSeoKeywords(companyCase),
     path: getCompanyCasePath(companyCase.id),
     image: companyCase.image,
   }
@@ -509,17 +515,22 @@ const getRouteStructuredData = (
           },
           author: {
             '@type': 'Organization',
+            '@id': `${SITE_BASE_URL}/#legalservice`,
             name: '법무법인 나란',
             url: SITE_BASE_URL,
           },
           publisher: {
             '@type': 'Organization',
+            '@id': `${SITE_BASE_URL}/#legalservice`,
             name: '법무법인 나란',
             url: SITE_BASE_URL,
           },
           about: [selectedCompanyCase.name, selectedCompanyCase.service, '사기 피해 사례', '피해회복 상담'],
         },
         getCompaniesBreadcrumbStructuredData(canonicalUrl, selectedCompanyCase),
+        ...(selectedCompanyCase.isPublic === false
+          ? []
+          : [getCompanyFaqStructuredData(selectedCompanyCase, canonicalUrl)]),
       ],
     }
   }
@@ -685,6 +696,21 @@ const getInitialCompanyPageData = (): CompanyPageBootstrap | null => {
 }
 
 const INITIAL_COMPANY_PAGE_DATA = getInitialCompanyPageData()
+
+const isRelatedCompanyCase = (value: unknown): value is RelatedCompanyCase => {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<RelatedCompanyCase>
+  return [item.id, item.name, item.service].every((field) => typeof field === 'string' && field.trim().length > 0)
+}
+
+// Related links are computed on the server; reuse them only for the page they were rendered for.
+const getInitialRelatedCompanyCases = (companyCaseId: string): RelatedCompanyCase[] => {
+  if (INITIAL_COMPANY_PAGE_DATA?.kind !== 'detail' || INITIAL_COMPANY_PAGE_DATA.item.id !== companyCaseId) {
+    return []
+  }
+  const related = INITIAL_COMPANY_PAGE_DATA.related
+  return Array.isArray(related) ? related.filter(isRelatedCompanyCase) : []
+}
 
 const resolveLegacyHashRoute = (hash: string): PageRoute | null => {
   const rawHash = hash.trim()
@@ -4535,6 +4561,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
                         <div className="company-detail-copy" ref={companyDetailCopyRef}>
                           <p className="company-detail-service">{selectedCompanyCase.service}</p>
                           <h1>{selectedCompanyCase.name}</h1>
+                          <CompanyDates item={selectedCompanyCase} />
                           <p className="company-detail-description">{selectedCompanyCase.description}</p>
                           <button type="button" className="company-detail-cta" onClick={moveToQuickFormSection}>
                             신청 바로가기
@@ -4562,6 +4589,8 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
                         <img src={kakaoConnectImg} alt="법무법인 나란 카카오톡 무료상담 연결" />
                       </a>
                     </section>
+
+                    <CompanyGuide item={selectedCompanyCase} related={getInitialRelatedCompanyCases(selectedCompanyCase.id)} />
                   </>
                 ) : companyCasesLoaded ? (
                   <div className="company-detail company-detail-empty">
