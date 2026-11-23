@@ -4524,7 +4524,7 @@ function App({ initialPathname = '/' }: { initialPathname?: string } = {}) {
         )}
 
         {route === 'companies' && (
-          <section className="companies-page reveal-on-scroll" aria-label="사기업체 사례">
+          <section className="companies-page" aria-label="사기업체 사례">
             <div className="companies-banner-wrap">
               <img src={bannerImg} alt="사기업체 배너" className="companies-banner" />
               <div className="companies-banner-content">
