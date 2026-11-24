@@ -45,7 +45,8 @@ for (const host of [new URL(SITE_BASE_URL).host, 'unrelated.example']) {
       assert.match(body, /로맨스스캠 사기/)
       assert.match(body, /36,489/)
     } else {
-      for (const name of ['서지원 대표변호사', '최지연 변호사', '정이든 변호사']) assert.ok(body.includes(name))
+      for (const name of ['서지원 대표변호사', '최지연 변호사']) assert.ok(body.includes(name))
+      assert.doesNotMatch(html, /정이든 변호사/)
       assert.match(body, /서울도봉경찰서 경미범죄 심사위원회 위원/)
       assert.doesNotMatch(body, /class="hero-section"/)
     }

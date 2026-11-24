@@ -16,7 +16,6 @@ import kakaoConnectImg from './assets/카톡 연결.png'
 import phoneConnectImg from './assets/전화 연결.png'
 import law1Img from './assets/law1.png'
 import law2Img from './assets/law2.png'
-import law3Img from './assets/law3.png'
 import bannerImg from './assets/banner.png'
 import { isFirebaseConfigured } from './firebase-config'
 import { isFirebaseError, subscribeToFirebase } from './deferred-firebase'
@@ -1009,19 +1008,6 @@ const lawyerProfiles: LawyerProfile[] = [
     image: law2Img,
     imageAlt: '최지연 변호사',
     reverse: true,
-  },
-  {
-    name: '정이든 변호사',
-    role: '',
-    specialty: '부동산 전문',
-    headline: ['대한변협 인증 부동산', '전문변호사'],
-    history: [
-      '(前) 법무법인 정의 (2020~2022)',
-      '(前) 법무법인(유) 한 (2022~2024)',
-      '(現) 법무법인 나란',
-    ],
-    image: law3Img,
-    imageAlt: '정이든 변호사',
   },
 ]
 
